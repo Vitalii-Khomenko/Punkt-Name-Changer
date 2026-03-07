@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leica Mobile Renamer V3</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Leica Mobile Renamer</h1>
+            <p>Optimized for Samsung A55 - IPKT/IMES Priority</p>
+        </header>
+
+        <div class="card">
+            <h3>1. File Selection</h3>
+            <div class="form-group">
+                <label for="fileInput">Upload Files</label>
+                <input type="file" id="fileInput" multiple accept=".imes,.ipkt,.iroh,.lqp,.txt">
+                <small class="hint">Supports .imes, .ipkt, .iroh, .lqp</small>
+            </div>
+            <div class="form-group">
+                <label for="masterFileSelect">Master File (Reference):</label>
+                <select id="masterFileSelect">
+                    <option value="">(Selecting a file first...)</option>
+                </select>
+                <small class="hint">Defines coordinates &amp; total point count.</small>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>2. Configuration</h3>
+            <div class="form-group">
+                <label>Detected Patterns</label>
+                <div id="patternsContainer"></div>
+                <small class="hint">For each pattern (e.g. G01.xxx), set New Base Prefix, start point, quantity, and start MQ.</small>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="useLfNrStart">
+                        Manual start by &lt;LfNr&gt; (for .imes/.ipkt)
+                    </label>
+                    <small class="hint">When enabled, the tool renames exactly ONE point (the point found at the given &lt;LfNr&gt; in Master) to the provided new name.</small>
+                </div>
+                <div class="form-group">
+                    <label for="startLfNr">Start &lt;LfNr&gt;</label>
+                    <input type="text" id="startLfNr" value="000001" placeholder="e.g. 22 or 000022">
+                    <small class="hint">Used only when manual mode is enabled.</small>
+                </div>
+            </div>
+
+            <div id="manualOverrideFields" style="display:none;">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="manualNewPointName">Manual: New Point Name</label>
+                        <input type="text" id="manualNewPointName" value="" placeholder="e.g. 3560.MQ01.03">
+                        <small class="hint">No spaces. The tool applies this rename across the current session files.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="suffix">Output Suffix</label>
+                    <input type="text" id="suffix" value="_renamed" placeholder="_renamed">
+                </div>
+            </div>
+
+            <button id="processBtn">Rename</button>
+            <button id="exportTxtBtn" type="button">Export TXT</button>
+        </div>
+
+        <div class="card">
+            <h3>Log Output</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <!-- Scripts: Order is important -->
+    <script src="js/utils.js"></script>
+    <script src="js/parsers.js"></script>
+    <script src="js/renamer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

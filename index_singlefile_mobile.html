@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leica Mobile Renamer V3 (Single File)</title>
+    <style>
+:root {
+    --primary-color: #3498db;
+    --primary-dark: #2980b9;
+    --background: #f4f7f6;
+    --card-bg: #fff;
+    --text-color: #333;
+    --spacing-unit: 15px;
+}
+
+body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    margin: 0;
+    padding: var(--spacing-unit);
+    background-color: var(--background);
+    color: var(--text-color);
+    line-height: 1.5;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Mobile Header */
+header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 1.5rem;
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    border-bottom: 2px solid var(--primary-color);
+    display: inline-block;
+    padding-bottom: 5px;
+}
+
+p {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+}
+
+/* Cards */
+.card {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 15px;
+}
+
+h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    color: #444;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* Form Elements - Touch Friendly */
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #555;
+    /* Prevent text selection when tapping quickly */
+    user-select: none;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 12px; /* Bigger touch target */
+    font-size: 16px; /* Prevent automatic zoom on mobile browsers */
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+    background-color: #fafafa;
+    appearance: none;
+    -webkit-appearance: none; /* Normalize iOS appearance */
+}
+
+input[type="file"] {
+    padding: 15px;
+    border: 2px dashed #3498db;
+    border-radius: 8px;
+    width: 100%;
+    background: #f0f7fb;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: #888;
+}
+
+/* Grid Layout */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+}
+
+/* Tablet/Desktop Override */
+@media (min-width: 600px) {
+    .grid-2 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Buttons */
+button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 16px; /* Fat finger friendly */
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    width: 100%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+    transition: transform 0.1s, background-color 0.2s;
+    margin-top: 10px;
+}
+
+button:active {
+    transform: scale(0.98);
+    background-color: var(--primary-dark);
+}
+
+/* Log Console */
+#log {
+    background: #2c3e50;
+    color: #ecf0f1;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: 'Consolas', monospace;
+    font-size: 0.85rem;
+    height: 150px; /* Shorter on mobile to save space */
+    overflow-y: auto;
+    white-space: pre-wrap;
+    /* Custom scrollbar for webkit */
+    scrollbar-width: thin;
+    scrollbar-color: #555 #2c3e50;
+}
+
+.success { color: #2ecc71; font-weight: bold; }
+.warning { color: #f1c40f; }
+.error { color: #e74c3c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Leica Mobile Renamer</h1>
+            <p>Optimized for Samsung A55 - IPKT/IMES Priority</p>
+        </header>
+
+        <div class="card">
+            <h3>1. File Selection</h3>
+            <div class="form-group">
+                <label for="fileInput">Upload Files</label>
+                <input type="file" id="fileInput" multiple accept=".imes,.ipkt,.iroh,.lqp,.txt">
+                <small class="hint">Supports .imes, .ipkt, .iroh, .lqp</small>
+            </div>
+            <div class="form-group">
+                <label for="masterFileSelect">Master File (Reference):</label>
+                <select id="masterFileSelect">
+                    <option value="">(Selecting a file first...)</option>
+                </select>
+                <small class="hint">Defines coordinates & total point count.</small>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>2. Configuration</h3>
+            <div class="form-group">
+                <label>Detected Patterns</label>
+                <div id="patternsContainer"></div>
+                <small class="hint">For each pattern (e.g. G01.xxx), set New Base Prefix, start point, quantity, and start MQ.</small>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="useLfNrStart">
+                        Manual start by &lt;LfNr&gt; (for .imes/.ipkt)
+                    </label>
+                    <small class="hint">When enabled, the tool renames exactly ONE point (the point found at the given &lt;LfNr&gt; in Master) to the provided new name.</small>
+                </div>
+                <div class="form-group">
+                    <label for="startLfNr">Start &lt;LfNr&gt;</label>
+                    <input type="text" id="startLfNr" value="000001" placeholder="e.g. 22 or 000022">
+                    <small class="hint">Used only when manual mode is enabled.</small>
+                </div>
+            </div>
+
+            <div id="manualOverrideFields" style="display:none;">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="manualNewPointName">Manual: New Point Name</label>
+                        <input type="text" id="manualNewPointName" value="" placeholder="e.g. 3560.MQ01.03">
+                        <small class="hint">No spaces. The tool applies this rename across the current session files.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="suffix">Output Suffix</label>
+                    <input type="text" id="suffix" value="_renamed" placeholder="_renamed">
+                </div>
+            </div>
+
+            <button id="processBtn">Rename</button>
+            <button id="exportTxtBtn" type="button">Export TXT</button>
+        </div>
+
+        <div class="card">
+            <h3>Log Output</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+// ==============================
+// PunktNameChanger (Single-file)
+// ==============================
+
+// --- Global State ---
+window.coordinateMap = new Map();
+
+// --- Helpers (utils.js) ---
+function pad2(value) {
+    return String(parseInt(value, 10)).padStart(2, '0');
+}
+
+function pad3(value) {
+    return String(parseInt(value, 10)).padStart(3, '0');
+}
+
+// Parses only dot-format IDs used in this project:
+//   G01.001 .. G10.998
+//   P01.001 .. P10.998
+// Returns null if not supported.
+function parsePointId(value) {
+    if (value === null || value === undefined) return null;
+    const normalized = String(value).trim().toUpperCase();
+    const match = normalized.match(/^([GP])(0[1-9]|10)\.(\d{3})$/);
+    if (!match) return null;
+
+    const family = match[1];
+    const path = match[2];
+    const index = parseInt(match[3], 10);
+    if (!Number.isInteger(index) || index < 1 || index > 998) return null;
+
+    return {
+        normalized: `${family}${path}.${pad3(index)}`,
+        family,
+        path,
+        index,
+        patternKey: `${family}${path}`
+    };
+}
+
+function getSuffixCodeFromPointId(parsedPointId) {
+    if (!parsedPointId) return null;
+    const isOdd = parsedPointId.index % 2 !== 0;
+    if (parsedPointId.family === 'P') {
+        return isOdd ? '01' : '02';
+    }
+    return isOdd ? '03' : '04';
+}
+
+function readFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = e => reject(e);
+        reader.readAsText(file);
+    });
+}
+
+function downloadFile(content, oldName, suffix) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    const parts = oldName.split('.');
+    const ext = parts.pop();
+    const name = parts.join('.');
+
+    a.href = url;
+    a.download = `${name}${suffix}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function downloadTextFile(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Keep log bounded for long multi-run sessions (mobile safety)
+const LOG_MAX_LINES = 400;
+
+function enforceLogLimit(logDiv) {
+    if (!logDiv) return;
+    const maxNodes = LOG_MAX_LINES * 2 + 10;
+    while (logDiv.childNodes.length > maxNodes) {
+        logDiv.removeChild(logDiv.firstChild);
+    }
+}
+
+function log(msg) {
+    appendLog(String(msg), '');
+}
+
+function appendLog(msg, type) {
+    const logDiv = document.getElementById('log');
+    const span = document.createElement('span');
+    if (type) span.className = type;
+    span.textContent = msg;
+    logDiv.appendChild(span);
+    logDiv.appendChild(document.createTextNode('\n'));
+    enforceLogLimit(logDiv);
+}
+
+function logSuccess(msg) { appendLog(msg, 'success'); }
+function logWarning(msg) { appendLog(msg, 'warning'); }
+function logError(msg) { appendLog(msg, 'error'); }
+function clearLog() { document.getElementById('log').textContent = ''; }
+
+// --- Parsing Logic (parsers.js) ---
+function buildCoordinateMap(text, filename) {
+    coordinateMap.clear();
+    const isLqp = filename.toLowerCase().endsWith('.lqp');
+    const lines = text.split('\n');
+
+    if (isLqp) {
+        let buffer = [];
+        let inBlock = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('-----')) {
+                if (buffer.length >= 2) parseLqpBlock(buffer);
+                buffer = [];
+                inBlock = true;
+            } else if (inBlock && line.length > 0) {
+                buffer.push(line);
+            }
+        }
+
+        if (buffer.length >= 2) parseLqpBlock(buffer);
+    } else {
+        lines.forEach(line => {
+            const yxzIndex = line.indexOf('|YXZ|');
+            if (yxzIndex > -1) {
+                const preYxz = line.substring(0, yxzIndex);
+                const lastPipeIndex = preYxz.lastIndexOf('|');
+
+                if (lastPipeIndex > -1) {
+                    const idPart = preYxz.substring(lastPipeIndex + 1);
+                    const id = idPart.trim();
+
+                    const postYxz = line.substring(yxzIndex + 5);
+                    const parts = postYxz.split('|');
+                    if (parts.length >= 2) {
+                        const y = parseFloat(parts[0].trim());
+                        const x = parseFloat(parts[1].trim());
+                        if (id && !isNaN(y) && !isNaN(x)) {
+                            coordinateMap.set(id, { y, x });
+                        }
+                    }
+                }
+                return;
+            }
+
+            if (line.includes('PID:')) {
+                const pipeParts = line.split('|');
+                let pid = null, y = null, x = null;
+                let isHeader = false;
+
+                pipeParts.forEach(part => {
+                    const trimmed = part.trim();
+                    if (trimmed.startsWith('PID:')) {
+                        pid = trimmed.substring(4).trim();
+                    } else if (trimmed.startsWith('Y:')) {
+                        y = parseFloat(trimmed.substring(2).trim());
+                    } else if (trimmed.startsWith('X:')) {
+                        x = parseFloat(trimmed.substring(2).trim());
+                    } else if (trimmed.startsWith('CODE:')) {
+                        const code = trimmed.substring(5).trim();
+                        if (code === 'iGeo') isHeader = true;
+                    }
+                });
+
+                if (pid && !isNaN(y) && !isNaN(x) && !isHeader) {
+                    coordinateMap.set(pid, { y, x });
+                }
+            }
+        });
+    }
+}
+
+function parseLqpBlock(buffer) {
+    try {
+        const idLine = buffer[0].trim().split(/\s+/);
+        const coordLine = buffer[1].trim().split(/\s+/);
+
+        if (idLine.length > 0 && coordLine.length >= 2) {
+            const id = idLine[0];
+            const y = parseFloat(coordLine[0]);
+            const x = parseFloat(coordLine[1]);
+
+            if (!isNaN(y) && !isNaN(x)) {
+                coordinateMap.set(id, { y, x });
+            }
+        }
+    } catch (e) {
+        console.warn('Skipped LQP block due to parse error', buffer);
+    }
+}
+
+// --- Renaming Logic (renamer.js) ---
+function processSingleFileSinglePointRename(content, ext, oldId, newName, options = {}) {
+    if (typeof content !== 'string') {
+        throw new Error('Invalid file content.');
+    }
+    if (!oldId || !newName) {
+        throw new Error('Manual rename requires oldId and newName.');
+    }
+    if (!coordinateMap.has(oldId)) {
+        return { modified: false, count: 0, content };
+    }
+
+    const reportLines = Array.isArray(options.reportLines) ? options.reportLines : null;
+    const fileName = options.fileName || '';
+
+    const lines = content.split('\n');
+    const newLines = [];
+    let localRenameCount = 0;
+
+    for (let line of lines) {
+        if (ext === 'imes' || ext === 'ipkt') {
+            const yxzIndex = line.indexOf('|YXZ|');
+            if (yxzIndex > -1) {
+                const preYxz = line.substring(0, yxzIndex);
+                const lastPipeIndex = preYxz.lastIndexOf('|');
+                if (lastPipeIndex > -1) {
+                    const idInLine = preYxz.substring(lastPipeIndex + 1).trim();
+                    if (idInLine === oldId) {
+                        let valid = true;
+                        const postYxz = line.substring(yxzIndex + 5);
+                        const parts = postYxz.split('|');
+                        if (parts.length >= 2) {
+                            const y = parseFloat(parts[0].trim());
+                            const x = parseFloat(parts[1].trim());
+                            if (!isNaN(y) && !isNaN(x)) {
+                                const master = coordinateMap.get(oldId);
+                                if (Math.abs(master.y - y) > 0.05 || Math.abs(master.x - x) > 0.05) {
+                                    logWarning(`Skipping ${oldId}: Coords mismatch (File: ${y},${x} | Master: ${master.y},${master.x})`);
+                                    valid = false;
+                                }
+                            }
+                        }
+
+                        if (valid) {
+                            const originalSegment = line.substring(lastPipeIndex + 1, yxzIndex);
+                            const originalLen = originalSegment.length;
+                            let newPaddingLen = originalLen - newName.length;
+                            if (newPaddingLen < 0) newPaddingLen = 0;
+                            const newSegment = ' '.repeat(newPaddingLen) + newName;
+                            line = line.substring(0, lastPipeIndex + 1) + newSegment + line.substring(yxzIndex);
+                            localRenameCount++;
+                            if (reportLines) reportLines.push(`${fileName}|${oldId} -> ${newName}`);
+                        }
+                    }
+                }
+            }
+            newLines.push(line);
+            continue;
+        }
+
+        if (ext === 'iroh') {
+            if (!line.includes('PID:')) {
+                newLines.push(line);
+                continue;
+            }
+
+            const pipeParts = line.split('|');
+            let tempPid = null, tempY = null, tempX = null;
+            let isHeader = false;
+
+            for (let part of pipeParts) {
+                const trimmed = part.trim();
+                if (trimmed.startsWith('PID:')) tempPid = trimmed.substring(4).trim();
+                if (trimmed.startsWith('CLS:')) {
+                    const clsVal = trimmed.substring(4).trim();
+                    if (clsVal === 'STAT') isHeader = true;
+                }
+                if (trimmed.startsWith('Y:')) {
+                    const val = trimmed.substring(2).trim();
+                    if (val) tempY = parseFloat(val);
+                }
+                if (trimmed.startsWith('X:')) {
+                    const val = trimmed.substring(2).trim();
+                    if (val) tempX = parseFloat(val);
+                }
+                if (trimmed.startsWith('CODE:')) {
+                    const codeVal = trimmed.substring(5).trim();
+                    if (codeVal === 'iGeo') isHeader = true;
+                }
+            }
+
+            if (!isHeader && tempPid === oldId) {
+                if (!Number.isFinite(tempY) || !Number.isFinite(tempX)) {
+                    newLines.push(line);
+                    continue;
+                }
+
+                const master = coordinateMap.get(oldId);
+                if (Math.abs(master.y - tempY) > 0.05 || Math.abs(master.x - tempX) > 0.05) {
+                    logWarning(`Skipping ${oldId}: Coords mismatch (File: ${tempY},${tempX} | Master: ${master.y},${master.x})`);
+                    newLines.push(line);
+                    continue;
+                }
+
+                const pidStartIdx = line.indexOf('PID:');
+                if (pidStartIdx > -1) {
+                    const pipeAfterPid = line.indexOf('|', pidStartIdx);
+                    if (pipeAfterPid > -1) {
+                        const fieldContent = line.substring(pidStartIdx, pipeAfterPid);
+                        const fieldWidth = fieldContent.length;
+                        const label = 'PID:';
+                        const availableSpace = fieldWidth - label.length;
+                        let padding = availableSpace - newName.length;
+                        if (padding < 0) padding = 0;
+                        const newField = label + ' '.repeat(padding) + newName;
+                        line = line.substring(0, pidStartIdx) + newField + line.substring(pipeAfterPid);
+                        localRenameCount++;
+                        if (reportLines) reportLines.push(`${fileName}|${oldId} -> ${newName}`);
+                    }
+                }
+            }
+
+            newLines.push(line);
+            continue;
+        }
+
+        if (ext === 'lqp') {
+            const trimmed = line.trim();
+            if (trimmed.length > 0) {
+                const tokens = trimmed.split(/\s+/);
+                const candidateId = tokens[0];
+                const secondToken = parseFloat(tokens[1]);
+                const thirdToken = parseFloat(tokens[2]);
+                const looksLikeLqpMeasurementLine =
+                    Number.isFinite(secondToken) &&
+                    Number.isFinite(thirdToken) &&
+                    secondToken >= 0 && secondToken <= 400 &&
+                    thirdToken >= 0 && thirdToken <= 400;
+
+                const isDate = /^\d{2}\.\d{2}\.\d{4}/.test(candidateId);
+                const isSep = /^[-=]+$/.test(candidateId);
+                const isLabel = /^[A-Za-z]+$/.test(candidateId) && !/\d/.test(candidateId);
+
+                if (!isDate && !isSep && !isLabel && looksLikeLqpMeasurementLine) {
+                    if (candidateId === oldId && coordinateMap.has(candidateId)) {
+                        const idIndex = line.indexOf(candidateId);
+                        if (idIndex > -1 && idIndex < 20) {
+                            const idEndIndex = idIndex + candidateId.length;
+                            const dataPart = line.substring(idEndIndex);
+                            const totalSpaceAvailable = idEndIndex;
+                            const newNameLen = newName.length;
+                            let newPaddingSize = totalSpaceAvailable - newNameLen;
+                            let prefixSpace = '';
+                            if (newPaddingSize > 0) prefixSpace = ' '.repeat(newPaddingSize);
+                            line = prefixSpace + newName + dataPart;
+                            localRenameCount++;
+                            if (reportLines) reportLines.push(`${fileName}|${oldId} -> ${newName}`);
+                        }
+                    }
+                }
+            }
+            newLines.push(line);
+            continue;
+        }
+
+        newLines.push(line);
+    }
+
+    return {
+        modified: localRenameCount > 0,
+        count: localRenameCount,
+        content: newLines.join('\n')
+    };
+}
+
+function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
+    if (content.length > 5 * 1024 * 1024 && !content.includes('\n')) {
+        throw new Error('File too large and lacks newlines. Possible binary or corrupted file.');
+    }
+
+    const reportLines = Array.isArray(options.reportLines) ? options.reportLines : null;
+    const fileName = options.fileName || '';
+
+    const useLfNrStart = !!options.useLfNrStart && (ext === 'imes' || ext === 'ipkt');
+    const startLfNr = options.startLfNr || null;
+    const manualState = options.manualState && typeof options.manualState === 'object' ? options.manualState : { started: false };
+
+    const manualOverride = options.manualOverride && typeof options.manualOverride === 'object' ? options.manualOverride : null;
+    const manualOverrideEnabled = !!(manualOverride && manualOverride.enabled);
+
+    const sessionsByKey = new Map();
+    for (const s of sessions) {
+        sessionsByKey.set(s.patternKey, s);
+    }
+
+    const lines = content.split('\n');
+    const newLines = [];
+    let localRenameCount = 0;
+
+    for (let line of lines) {
+        let id = null, y = null, x = null;
+        let lfNr = null;
+        let patternType = 'unknown';
+
+        const yxzIndex = line.indexOf('|YXZ|');
+        if (yxzIndex > -1) {
+            const firstPipeIndex = line.indexOf('|');
+            if (firstPipeIndex > -1) {
+                const rawLfNr = line.substring(0, firstPipeIndex).trim();
+                if (/^\d{1,6}$/.test(rawLfNr)) {
+                    lfNr = String(parseInt(rawLfNr, 10)).padStart(6, '0');
+                }
+            }
+            const preYxz = line.substring(0, yxzIndex);
+            const lastPipeIndex = preYxz.lastIndexOf('|');
+            if (lastPipeIndex > -1) {
+                id = preYxz.substring(lastPipeIndex + 1).trim();
+
+                const postYxz = line.substring(yxzIndex + 5);
+                const parts = postYxz.split('|');
+                if (parts.length >= 2) {
+                    y = parseFloat(parts[0].trim());
+                    x = parseFloat(parts[1].trim());
+                    patternType = 'imes';
+                }
+            }
+        }
+
+        if (useLfNrStart && !manualState.started && patternType === 'imes' && lfNr && startLfNr && lfNr === startLfNr) {
+            manualState.started = true;
+        }
+
+        if (manualOverrideEnabled && manualState.started && manualOverride.remaining > 0 && id) {
+            const parsed = parsePointId(id);
+            const masterKey = parsed ? parsed.normalized : null;
+            if (parsed && masterKey && coordinateMap.has(masterKey)) {
+                let valid = false;
+                const master = coordinateMap.get(masterKey);
+
+                if (patternType === 'iroh' && (y === null || x === null || isNaN(y) || isNaN(x))) {
+                    valid = false;
+                } else if (y !== null && x !== null && !isNaN(y) && !isNaN(x)) {
+                    if (Math.abs(master.y - y) > 0.05 || Math.abs(master.x - x) > 0.05) {
+                        logWarning(`Skipping ${id}: Coords mismatch (File: ${y},${x} | Master: ${master.y},${master.x})`);
+                        valid = false;
+                    } else {
+                        valid = true;
+                    }
+                } else {
+                    valid = true;
+                }
+
+                if (valid) {
+                    const suffixCode = getSuffixCodeFromPointId(parsed);
+                    const mqString = pad2(manualOverride.mqIndex);
+                    const newName = `${manualOverride.basePrefix}.MQ${mqString}.${suffixCode}`;
+
+                    if (suffixCode === '04' || suffixCode === '02') {
+                        manualOverride.mqIndex++;
+                    }
+
+                    if (patternType === 'imes') {
+                        const yxzIdx = line.indexOf('|YXZ|');
+                        const pre = line.substring(0, yxzIdx);
+                        const pipeIdx = pre.lastIndexOf('|');
+                        const originalSegment = line.substring(pipeIdx + 1, yxzIdx);
+                        const originalLen = originalSegment.length;
+                        let newPaddingLen = originalLen - newName.length;
+                        if (newPaddingLen < 0) newPaddingLen = 0;
+                        const newSegment = ' '.repeat(newPaddingLen) + newName;
+                        line = line.substring(0, pipeIdx + 1) + newSegment + line.substring(yxzIdx);
+                    } else if (patternType === 'iroh') {
+                        const pidStartIdx = line.indexOf('PID:');
+                        if (pidStartIdx > -1) {
+                            const pipeAfterPid = line.indexOf('|', pidStartIdx);
+                            if (pipeAfterPid > -1) {
+                                const fieldContent = line.substring(pidStartIdx, pipeAfterPid);
+                                const fieldWidth = fieldContent.length;
+                                const label = 'PID:';
+                                const availableSpace = fieldWidth - label.length;
+                                let padding = availableSpace - newName.length;
+                                if (padding < 0) padding = 0;
+                                const newField = label + ' '.repeat(padding) + newName;
+                                line = line.substring(0, pidStartIdx) + newField + line.substring(pipeAfterPid);
+                            }
+                        }
+                    } else if (patternType === 'lqp') {
+                        const idIndex = line.indexOf(id);
+                        if (idIndex > -1 && idIndex < 20) {
+                            const idEndIndex = idIndex + id.length;
+                            const dataPart = line.substring(idEndIndex);
+                            const totalSpaceAvailable = idEndIndex;
+                            const newNameLen = newName.length;
+                            let newPaddingSize = totalSpaceAvailable - newNameLen;
+                            let prefixSpace = '';
+                            if (newPaddingSize > 0) {
+                                prefixSpace = ' '.repeat(newPaddingSize);
+                            }
+                            line = prefixSpace + newName + dataPart;
+                        }
+                    }
+
+                    localRenameCount++;
+                    manualOverride.remaining--;
+                    if (reportLines) {
+                        reportLines.push(`${fileName}|${id} -> ${newName}`);
+                    }
+                }
+            }
+
+            newLines.push(line);
+            continue;
+        }
+
+        if (!id && line.includes('PID:')) {
+            const pipeParts = line.split('|');
+            let tempPid = null, tempY = null, tempX = null;
+            let isHeader = false;
+
+            for (let part of pipeParts) {
+                const trimmed = part.trim();
+                if (trimmed.startsWith('PID:')) tempPid = trimmed.substring(4).trim();
+                if (trimmed.startsWith('CLS:')) {
+                    const clsVal = trimmed.substring(4).trim();
+                    if (clsVal === 'STAT') isHeader = true;
+                }
+                if (trimmed.startsWith('Y:')) {
+                    const val = trimmed.substring(2).trim();
+                    if (val) tempY = parseFloat(val);
+                }
+                if (trimmed.startsWith('X:')) {
+                    const val = trimmed.substring(2).trim();
+                    if (val) tempX = parseFloat(val);
+                }
+                if (trimmed.startsWith('CODE:')) {
+                    const codeVal = trimmed.substring(5).trim();
+                    if (codeVal === 'iGeo') isHeader = true;
+                }
+            }
+
+            if (tempPid && !isHeader) {
+                id = tempPid;
+                y = tempY;
+                x = tempX;
+                patternType = 'iroh';
+            }
+        }
+
+        if (!id && ext === 'lqp') {
+            const trimmed = line.trim();
+            if (trimmed.length > 0) {
+                const tokens = trimmed.split(/\s+/);
+                const candidateId = tokens[0];
+                const secondToken = parseFloat(tokens[1]);
+                const thirdToken = parseFloat(tokens[2]);
+                const looksLikeLqpMeasurementLine =
+                    Number.isFinite(secondToken) &&
+                    Number.isFinite(thirdToken) &&
+                    secondToken >= 0 && secondToken <= 400 &&
+                    thirdToken >= 0 && thirdToken <= 400;
+
+                const isDate = /^\d{2}\.\d{2}\.\d{4}/.test(candidateId);
+                const isSep = /^[-=]+$/.test(candidateId);
+                const isLabel = /^[A-Za-z]+$/.test(candidateId) && !/\d/.test(candidateId);
+
+                if (!isDate && !isSep && !isLabel) {
+                    if (looksLikeLqpMeasurementLine && coordinateMap.has(candidateId)) {
+                        id = candidateId;
+                        patternType = 'lqp';
+                    }
+                }
+            }
+        }
+
+        if (id) {
+            const parsed = parsePointId(id);
+            const session = parsed ? sessionsByKey.get(parsed.patternKey) : null;
+
+            if (session && !session.done) {
+                if (!useLfNrStart) {
+                    if (!session.active) {
+                        if (id === session.startOldId) {
+                            session.active = true;
+                        }
+                    }
+                }
+
+                const sessionIsActive = useLfNrStart ? manualState.started : session.active;
+
+                if (sessionIsActive && session.renamedCount < session.limit) {
+                    let valid = false;
+
+                    if (coordinateMap.has(id)) {
+                        const master = coordinateMap.get(id);
+
+                        if (patternType === 'iroh' && (y === null || x === null || isNaN(y) || isNaN(x))) {
+                            valid = false;
+                        } else if (y !== null && x !== null && !isNaN(y) && !isNaN(x)) {
+                            if (Math.abs(master.y - y) > 0.05 || Math.abs(master.x - x) > 0.05) {
+                                logWarning(`Skipping ${id}: Coords mismatch (File: ${y},${x} | Master: ${master.y},${master.x})`);
+                                valid = false;
+                            } else {
+                                valid = true;
+                            }
+                        } else {
+                            valid = true;
+                        }
+                    } else {
+                        valid = false;
+                    }
+
+                    if (valid) {
+                        const suffixCode = getSuffixCodeFromPointId(parsed);
+                        const isOddSuffix = (suffixCode === '01' || suffixCode === '03');
+                        const isEvenSuffix = (suffixCode === '02' || suffixCode === '04');
+
+                        // If current is odd and previous was also odd, the previous had no
+                        // even partner to close it — start a new MQ for the current point.
+                        if (isOddSuffix && session.lastSuffixCode !== null) {
+                            const prevWasOdd = (session.lastSuffixCode === '01' || session.lastSuffixCode === '03');
+                            if (prevWasOdd) session.mqIndex++;
+                        }
+
+                        const mqString = pad2(session.mqIndex);
+                        const newName = `${session.basePrefix}.MQ${mqString}.${suffixCode}`;
+
+                        session.lastSuffixCode = suffixCode;
+
+                        // After an even-suffix point the pair is complete — advance MQ.
+                        if (isEvenSuffix) session.mqIndex++;
+
+                        if (patternType === 'imes') {
+                            const yxzIdx = line.indexOf('|YXZ|');
+                            const pre = line.substring(0, yxzIdx);
+                            const pipeIdx = pre.lastIndexOf('|');
+
+                            const originalSegment = line.substring(pipeIdx + 1, yxzIdx);
+                            const originalLen = originalSegment.length;
+                            let newPaddingLen = originalLen - newName.length;
+                            if (newPaddingLen < 0) newPaddingLen = 0;
+                            const newSegment = ' '.repeat(newPaddingLen) + newName;
+                            line = line.substring(0, pipeIdx + 1) + newSegment + line.substring(yxzIdx);
+                        } else if (patternType === 'iroh') {
+                            const pidStartIdx = line.indexOf('PID:');
+                            if (pidStartIdx > -1) {
+                                const pipeAfterPid = line.indexOf('|', pidStartIdx);
+                                if (pipeAfterPid > -1) {
+                                    const fieldContent = line.substring(pidStartIdx, pipeAfterPid);
+                                    const fieldWidth = fieldContent.length;
+                                    const label = 'PID:';
+                                    const availableSpace = fieldWidth - label.length;
+
+                                    let padding = availableSpace - newName.length;
+                                    if (padding < 0) padding = 0;
+                                    const newField = label + ' '.repeat(padding) + newName;
+                                    line = line.substring(0, pidStartIdx) + newField + line.substring(pipeAfterPid);
+                                }
+                            }
+                        } else if (patternType === 'lqp') {
+                            const idIndex = line.indexOf(id);
+                            if (idIndex > -1 && idIndex < 20) {
+                                const idEndIndex = idIndex + id.length;
+                                const dataPart = line.substring(idEndIndex);
+                                const totalSpaceAvailable = idEndIndex;
+                                const newNameLen = newName.length;
+                                let newPaddingSize = totalSpaceAvailable - newNameLen;
+                                let prefixSpace = '';
+                                if (newPaddingSize > 0) {
+                                    prefixSpace = ' '.repeat(newPaddingSize);
+                                }
+                                line = prefixSpace + newName + dataPart;
+                            }
+                        }
+
+                        session.renamedCount++;
+                        localRenameCount++;
+
+                        if (reportLines) {
+                            reportLines.push(`${fileName}|${id} -> ${newName}`);
+                        }
+
+                        if (session.renamedCount >= session.limit) {
+                            session.active = false;
+                            session.done = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        newLines.push(line);
+    }
+
+    return {
+        modified: localRenameCount > 0,
+        count: localRenameCount,
+        content: newLines.join('\n')
+    };
+}
+
+// --- App Logic (main.js) ---
+let uploadedFiles = [];
+let uploadedFileEntries = [];
+let detectedPatterns = [];
+let sessionRenameReportLines = [];
+let lastRunMasterName = null;
+
+function getBaseNameNoExt(fileName) {
+    const name = String(fileName || '').trim();
+    if (!name) return '';
+    const lastDot = name.lastIndexOf('.');
+    if (lastDot <= 0) return name;
+    return name.slice(0, lastDot);
+}
+
+function setElementDisabled(el, disabled) {
+    if (!el) return;
+    el.disabled = disabled;
+}
+
+function updateManualModeUi() {
+    const manualEnabled = !!document.getElementById('useLfNrStart')?.checked;
+    const manualFields = document.getElementById('manualOverrideFields');
+    if (manualFields) manualFields.style.display = manualEnabled ? '' : 'none';
+
+    const container = document.getElementById('patternsContainer');
+    if (container) {
+        const inputs = container.querySelectorAll('input, select, textarea, button');
+        inputs.forEach(i => setElementDisabled(i, manualEnabled));
+    }
+}
+
+function normalizeLfNr(value) {
+    const raw = String(value || '').trim();
+    if (!/^\d{1,6}$/.test(raw)) return null;
+    return String(parseInt(raw, 10)).padStart(6, '0');
+}
+
+function extractImesIpktPointId(line) {
+    const yxzIndex = line.indexOf('|YXZ|');
+    if (yxzIndex === -1) return null;
+    const preYxz = line.substring(0, yxzIndex);
+    const lastPipeIndex = preYxz.lastIndexOf('|');
+    if (lastPipeIndex === -1) return null;
+    return preYxz.substring(lastPipeIndex + 1).trim();
+}
+
+function isLfNrLine(line, targetLfNr) {
+    return new RegExp(`^\\s*${targetLfNr}\\|`).test(line);
+}
+
+function countAvailableAfterLfNrInMaster(masterText, startLfNr) {
+    const counts = new Map();
+    let foundStart = false;
+    const lines = masterText.split('\n');
+    for (const line of lines) {
+        if (!foundStart && isLfNrLine(line, startLfNr)) {
+            foundStart = true;
+        }
+        if (!foundStart) continue;
+
+        const id = extractImesIpktPointId(line);
+        const parsed = id ? parsePointId(id) : null;
+        if (!parsed) continue;
+        if (!coordinateMap.has(parsed.normalized)) continue;
+        counts.set(parsed.patternKey, (counts.get(parsed.patternKey) || 0) + 1);
+    }
+    return { foundStart, counts };
+}
+
+function getPointIdFromMasterByLfNr(masterText, targetLfNr) {
+    if (!masterText || !targetLfNr) return null;
+    const lines = masterText.split('\n');
+    for (const line of lines) {
+        if (isLfNrLine(line, targetLfNr)) {
+            const id = extractImesIpktPointId(line);
+            return id ? id.trim() : null;
+        }
+    }
+    return null;
+}
+
+function detectPatternsFromMaster() {
+    const patternsByKey = new Map();
+    const order = [];
+
+    for (const id of coordinateMap.keys()) {
+        const parsed = parsePointId(id);
+        if (!parsed) continue;
+
+        let entry = patternsByKey.get(parsed.patternKey);
+        if (!entry) {
+            entry = {
+                patternKey: parsed.patternKey,
+                family: parsed.family,
+                path: parsed.path,
+                count: 0,
+                minIndex: null,
+                maxIndex: null,
+                idsInOrder: []
+            };
+            patternsByKey.set(parsed.patternKey, entry);
+            order.push(parsed.patternKey);
+        }
+
+        entry.count++;
+        entry.idsInOrder.push(parsed.normalized);
+        if (entry.minIndex === null || parsed.index < entry.minIndex) entry.minIndex = parsed.index;
+        if (entry.maxIndex === null || parsed.index > entry.maxIndex) entry.maxIndex = parsed.index;
+    }
+
+    return order.map(key => patternsByKey.get(key));
+}
+
+function renderPatternConfig(patterns) {
+    const container = document.getElementById('patternsContainer');
+    container.innerHTML = '';
+
+    if (!patterns || patterns.length === 0) {
+        const empty = document.createElement('div');
+        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998 or P01.001..P10.998).';
+        container.appendChild(empty);
+        return;
+    }
+
+    for (const pattern of patterns) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'form-group';
+        wrapper.dataset.patternKey = pattern.patternKey;
+
+        const title = document.createElement('div');
+        title.textContent = `${pattern.patternKey}  (found ${pattern.count}, range ${pattern.patternKey}.${pad3(pattern.minIndex)}..${pattern.patternKey}.${pad3(pattern.maxIndex)})`;
+        wrapper.appendChild(title);
+
+        const grid = document.createElement('div');
+        grid.className = 'grid-2';
+
+        const baseGroup = document.createElement('div');
+        baseGroup.className = 'form-group';
+        const baseLabel = document.createElement('label');
+        baseLabel.textContent = 'New Base Prefix';
+        const baseInput = document.createElement('input');
+        baseInput.type = 'text';
+        baseInput.value = '';
+        baseInput.placeholder = 'e.g. 3560';
+        baseInput.dataset.role = 'basePrefix';
+        baseGroup.appendChild(baseLabel);
+        baseGroup.appendChild(baseInput);
+        grid.appendChild(baseGroup);
+
+        const mqGroup = document.createElement('div');
+        mqGroup.className = 'form-group';
+        const mqLabel = document.createElement('label');
+        mqLabel.textContent = 'Start MQ Index';
+        const mqInput = document.createElement('input');
+        mqInput.type = 'number';
+        mqInput.value = '1';
+        mqInput.min = '1';
+        mqInput.dataset.role = 'startMq';
+        mqGroup.appendChild(mqLabel);
+        mqGroup.appendChild(mqInput);
+        grid.appendChild(mqGroup);
+
+        const startGroup = document.createElement('div');
+        startGroup.className = 'form-group';
+        const startLabel = document.createElement('label');
+        startLabel.textContent = 'Start Point (###)';
+        const startInput = document.createElement('input');
+        startInput.type = 'number';
+        startInput.value = String(pattern.minIndex);
+        startInput.min = '1';
+        startInput.max = '998';
+        startInput.dataset.role = 'startIndex';
+        startGroup.appendChild(startLabel);
+        startGroup.appendChild(startInput);
+        grid.appendChild(startGroup);
+
+        const qtyGroup = document.createElement('div');
+        qtyGroup.className = 'form-group';
+        const qtyLabel = document.createElement('label');
+        qtyLabel.textContent = 'QTY to Rename';
+        const qtyInput = document.createElement('input');
+        qtyInput.type = 'number';
+        qtyInput.value = String(pattern.count);
+        qtyInput.min = '1';
+        qtyInput.dataset.role = 'limit';
+        qtyGroup.appendChild(qtyLabel);
+        qtyGroup.appendChild(qtyInput);
+        grid.appendChild(qtyGroup);
+
+        wrapper.appendChild(grid);
+        container.appendChild(wrapper);
+    }
+}
+
+function getPatternConfigsFromUi() {
+    const container = document.getElementById('patternsContainer');
+    const blocks = Array.from(container.querySelectorAll('[data-pattern-key]'));
+    const configs = [];
+
+    for (const block of blocks) {
+        const patternKey = block.dataset.patternKey;
+        const basePrefix = (block.querySelector('[data-role="basePrefix"]')?.value || '').trim();
+        const startMq = parseInt(block.querySelector('[data-role="startMq"]')?.value, 10);
+        const startIndex = parseInt(block.querySelector('[data-role="startIndex"]')?.value, 10);
+        const limit = parseInt(block.querySelector('[data-role="limit"]')?.value, 10);
+
+        configs.push({ patternKey, basePrefix, startMq, startIndex, limit });
+    }
+
+    return configs;
+}
+
+function validatePatternConfigs(patterns, configs, options = {}) {
+    const patternsByKey = new Map((patterns || []).map(p => [p.patternKey, p]));
+    const errors = [];
+    const useLfNrStart = !!options.useLfNrStart;
+    const availableAfterLfNr = options.availableAfterLfNr || null;
+
+    for (const cfg of configs) {
+        const pattern = patternsByKey.get(cfg.patternKey);
+        if (!pattern) {
+            errors.push(`${cfg.patternKey}: pattern not found in master.`);
+            continue;
+        }
+        if (!cfg.basePrefix) {
+            errors.push(`${cfg.patternKey}: New Base Prefix is required.`);
+        }
+        if (!Number.isInteger(cfg.startMq) || cfg.startMq < 1) {
+            errors.push(`${cfg.patternKey}: Start MQ must be >= 1.`);
+        }
+        if (!Number.isInteger(cfg.startIndex) || cfg.startIndex < 1 || cfg.startIndex > 998) {
+            errors.push(`${cfg.patternKey}: Start Point must be in range 1..998.`);
+        }
+        if (!Number.isInteger(cfg.limit) || cfg.limit < 1) {
+            errors.push(`${cfg.patternKey}: QTY to Rename must be >= 1.`);
+        }
+
+        if (useLfNrStart) {
+            const available = availableAfterLfNr ? (availableAfterLfNr.get(cfg.patternKey) || 0) : 0;
+            if (cfg.limit > available) {
+                errors.push(`${cfg.patternKey}: requested ${cfg.limit}, but only ${available} points are available from <LfNr> start in master.`);
+            }
+        } else {
+            const startOldId = `${cfg.patternKey}.${pad3(cfg.startIndex)}`;
+            if (!coordinateMap.has(startOldId)) {
+                errors.push(`${cfg.patternKey}: Start point ${startOldId} not found in master.`);
+            }
+
+            const startPos = pattern.idsInOrder.indexOf(startOldId);
+            if (startPos === -1) {
+                errors.push(`${cfg.patternKey}: Start point ${startOldId} not found in ordered master list.`);
+            } else {
+                const available = pattern.idsInOrder.length - startPos;
+                if (cfg.limit > available) {
+                    errors.push(`${cfg.patternKey}: requested ${cfg.limit}, but only ${available} points are available from ${startOldId} in master order.`);
+                }
+            }
+        }
+    }
+
+    return errors;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+    document.getElementById('masterFileSelect').addEventListener('change', analyzeCurrentMaster);
+    document.getElementById('processBtn').addEventListener('click', processFiles);
+    document.getElementById('exportTxtBtn').addEventListener('click', exportTxtReport);
+    document.getElementById('useLfNrStart').addEventListener('change', updateManualModeUi);
+    updateManualModeUi();
+});
+
+async function handleFileSelect(event) {
+    // New session starts when user selects new input files.
+    clearLog();
+    sessionRenameReportLines = [];
+    detectedPatterns = [];
+    coordinateMap.clear();
+    lastRunMasterName = null;
+
+    uploadedFiles = Array.from(event.target.files);
+    uploadedFileEntries = new Array(uploadedFiles.length);
+    const select = document.getElementById('masterFileSelect');
+    select.innerHTML = '';
+
+    if (uploadedFiles.length === 0) {
+        select.innerHTML = '<option value="">No files selected</option>';
+        return;
+    }
+
+    let selectedIndex = 0;
+    for (let i = 0; i < uploadedFiles.length; i++) {
+        const ext = uploadedFiles[i].name.split('.').pop().toLowerCase();
+        if (ext === 'ipkt' || ext === 'imes') {
+            selectedIndex = i;
+            break;
+        } else if (ext === 'lqp' && selectedIndex === 0) {
+            selectedIndex = i;
+        }
+    }
+
+    uploadedFiles.forEach((file, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.text = file.name;
+        select.add(opt);
+    });
+
+    select.selectedIndex = selectedIndex;
+    log(`Loaded ${uploadedFiles.length} files. Default master: ${uploadedFiles[selectedIndex].name}`);
+
+    log('Reading files into session memory...');
+    let loadedCount = 0;
+    for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        try {
+            const text = await readFile(file);
+            const ext = file.name.split('.').pop().toLowerCase();
+            uploadedFileEntries[i] = {
+                file,
+                name: file.name,
+                ext,
+                originalContent: text,
+                currentContent: text,
+                modified: false
+            };
+            loadedCount++;
+        } catch (e) {
+            logError(`Failed to read ${file.name}: ${e.message || e}`);
+            uploadedFileEntries[i] = null;
+        }
+    }
+    logSuccess(`Session ready: ${loadedCount}/${uploadedFiles.length} files loaded.`);
+
+    await analyzeCurrentMaster();
+}
+
+async function analyzeCurrentMaster() {
+    const masterIndexValue = document.getElementById('masterFileSelect').value;
+    if (masterIndexValue === '') return;
+    const masterIndex = Number(masterIndexValue);
+    if (!Number.isInteger(masterIndex) || masterIndex < 0 || masterIndex >= uploadedFiles.length) return;
+    if (!uploadedFiles || uploadedFiles.length <= masterIndex) return;
+
+    const masterFile = uploadedFiles[masterIndex];
+    const masterEntry = uploadedFileEntries[masterIndex];
+
+    try {
+        if (!masterEntry) {
+            return logError('Master file content is not loaded. Please reselect files.');
+        }
+        buildCoordinateMap(masterEntry.originalContent, masterFile.name);
+
+        detectedPatterns = detectPatternsFromMaster();
+        renderPatternConfig(detectedPatterns);
+
+        if (detectedPatterns.length > 0) {
+            const total = detectedPatterns.reduce((sum, p) => sum + p.count, 0);
+            logSuccess(`Auto-detected: ${detectedPatterns.length} patterns, ${total} points total (dot format).`);
+        } else {
+            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998 and/or P01.001..P10.998.');
+        }
+    } catch (e) {
+        console.error(e);
+        logError('Analysis error: ' + e.message);
+    }
+}
+
+window.analyzeCurrentMaster = analyzeCurrentMaster;
+
+async function processFiles() {
+    const masterIndexValue = document.getElementById('masterFileSelect').value;
+    if (masterIndexValue === '') return alert('Please select files first.');
+    const masterIndex = Number(masterIndexValue);
+    if (!Number.isInteger(masterIndex) || masterIndex < 0 || masterIndex >= uploadedFiles.length) {
+        return logError('Invalid master file selection. Please reselect files.');
+    }
+
+    const masterFile = uploadedFiles[masterIndex];
+    const masterEntry = uploadedFileEntries[masterIndex];
+    const manualEnabled = !!document.getElementById('useLfNrStart')?.checked;
+    const startLfNr = normalizeLfNr(document.getElementById('startLfNr').value);
+    const manualNewName = (document.getElementById('manualNewPointName')?.value || '').trim();
+
+    if (!masterEntry) {
+        return logError('Master file content is not loaded. Please reselect files.');
+    }
+
+    // Used for TXT log filename at export time (stable even if user changes Master selection later).
+    lastRunMasterName = masterFile.name;
+    log(`Rename run started. Master: ${masterFile.name}`);
+
+    // Build Coordinate Map from Master (baseline/original content)
+    buildCoordinateMap(masterEntry.originalContent, masterFile.name);
+
+    if (coordinateMap.size === 0) {
+        return logError('No coordinates found in Master file! Check format.');
+    }
+    log(`Indexed ${coordinateMap.size} points from master.`);
+    detectedPatterns = detectPatternsFromMaster();
+
+    const masterExt = masterFile.name.split('.').pop().toLowerCase();
+    if (manualEnabled) {
+        if (!(masterExt === 'imes' || masterExt === 'ipkt')) {
+            return logError('Manual <LfNr> mode requires Master to be .imes or .ipkt.');
+        }
+        if (!startLfNr) {
+            return logError('Invalid Start <LfNr>. Please enter digits like 22 or 000022.');
+        }
+        if (!manualNewName) {
+            return logError('Manual mode: New Point Name is required.');
+        }
+        if (manualNewName.includes('|') || /\s/.test(manualNewName)) {
+            return logError('Manual mode: New Point Name must not contain spaces or "|".');
+        }
+
+        const oldId = getPointIdFromMasterByLfNr(masterEntry.originalContent, startLfNr);
+        if (!oldId) {
+            return logError(`Manual mode: <LfNr> "${startLfNr}" not found in master.`);
+        }
+        if (!coordinateMap.has(oldId)) {
+            return logError(`Manual mode: Point at <LfNr> ${startLfNr} is not eligible (not found in Master coordinate map): "${oldId}"`);
+        }
+
+        let totalRenames = 0;
+        let filesChanged = 0;
+
+        const entriesToProcess = [
+            uploadedFileEntries[masterIndex],
+            ...uploadedFileEntries.filter((entry, idx) => idx !== masterIndex && !!entry)
+        ].filter(Boolean);
+
+        for (const entry of entriesToProcess) {
+            try {
+                const result = processSingleFileSinglePointRename(
+                    entry.currentContent,
+                    entry.ext,
+                    oldId,
+                    manualNewName,
+                    {
+                        fileName: entry.name,
+                        reportLines: sessionRenameReportLines
+                    }
+                );
+                if (result.modified) {
+                    entry.currentContent = result.content;
+                    entry.modified = true;
+                    filesChanged++;
+                    totalRenames += result.count;
+                }
+            } catch (e) {
+                logError(`Error processing ${entry.name}: ${e.message}`);
+            }
+        }
+
+        if (totalRenames > 0) {
+            logSuccess(`Manual: <LfNr> ${startLfNr} | ${oldId} -> ${manualNewName} | renames: ${totalRenames} | files changed: ${filesChanged}`);
+        } else {
+            logWarning(`Manual: <LfNr> ${startLfNr} | ${oldId} -> ${manualNewName} | no changes (point not found in current session files).`);
+        }
+        return;
+    }
+
+    // Normal (pattern) mode
+    const configs = getPatternConfigsFromUi();
+    log(`Pattern mode. Patterns: ${configs.length}`);
+
+    const validationErrors = validatePatternConfigs(detectedPatterns, configs, {
+        useLfNrStart: false,
+        availableAfterLfNr: null
+    });
+    if (validationErrors.length > 0) {
+        for (const msg of validationErrors) logError(msg);
+        return;
+    }
+    logSuccess('Validation passed for all patterns.');
+
+    const sessions = configs.map(cfg => ({
+        patternKey: cfg.patternKey,
+        basePrefix: cfg.basePrefix,
+        startOldId: `${cfg.patternKey}.${pad3(cfg.startIndex)}`,
+        mqIndex: cfg.startMq,
+        limit: cfg.limit,
+        renamedCount: 0,
+        active: false,
+        done: false,
+        lastSuffixCode: null
+    }));
+
+    let totalRenames = 0;
+    let filesChanged = 0;
+
+    const entriesToProcess = [
+        uploadedFileEntries[masterIndex],
+        ...uploadedFileEntries.filter((entry, idx) => idx !== masterIndex && !!entry)
+    ].filter(Boolean);
+
+    for (const entry of entriesToProcess) {
+        try {
+            const result = processSingleFileMultiPattern(
+                entry.currentContent,
+                entry.ext,
+                sessions,
+                {
+                    fileName: entry.name,
+                    reportLines: sessionRenameReportLines,
+                    useLfNrStart: false
+                }
+            );
+            if (result.modified) {
+                entry.currentContent = result.content;
+                entry.modified = true;
+                filesChanged++;
+                totalRenames += result.count;
+            }
+        } catch (e) {
+            logError(`Error processing ${entry.name}: ${e.message}`);
+        }
+    }
+
+    const summary = sessions.map(s => `${s.patternKey}: ${s.renamedCount}/${s.limit}, next MQ ${pad2(s.mqIndex)}`).join(' | ');
+    logSuccess(`Pattern run done. Renames: ${totalRenames} | files changed: ${filesChanged} | ${summary}`);
+}
+
+function exportTxtReport() {
+    const hasFiles = Array.isArray(uploadedFileEntries) && uploadedFileEntries.some(e => !!e);
+    if (!hasFiles) {
+        return logWarning('No session files loaded yet.');
+    }
+
+    const suffix = document.getElementById('suffix')?.value || '';
+    let downloadedFiles = 0;
+    for (const entry of uploadedFileEntries) {
+        if (entry && entry.modified) {
+            downloadFile(entry.currentContent, entry.name, suffix);
+            downloadedFiles++;
+        }
+    }
+
+    let exportedTxt = false;
+    if (sessionRenameReportLines && sessionRenameReportLines.length > 0) {
+        const header = [
+            'PunktNameChanger TXT Report',
+            `Generated: ${new Date().toISOString()}`
+        ];
+        const content = header.concat([''], sessionRenameReportLines).join('\n');
+
+        const base = getBaseNameNoExt(lastRunMasterName);
+        const reportName = base ? `${base}_log.txt` : 'rename_log.txt';
+        downloadTextFile(content, reportName);
+        exportedTxt = true;
+    }
+
+    if (downloadedFiles === 0 && !exportedTxt) {
+        return logWarning('Nothing to export yet. Run Rename first.');
+    }
+    logSuccess(`Export complete. Files: ${downloadedFiles}, TXT: ${exportedTxt ? 'yes' : 'no'}.`);
+}
+    </script>
+</body>
+</html>
