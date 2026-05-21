@@ -130,6 +130,24 @@ input[type="file"] {
     color: #888;
 }
 
+.status-line {
+    min-height: 20px;
+    margin-bottom: 12px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #276b4b;
+}
+
+.summary-box {
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid #d8e6dc;
+    border-radius: 8px;
+    background: #f4faf6;
+    color: #2f5d46;
+    font-size: 0.88rem;
+}
+
 /* Grid Layout */
 .grid-2 {
     display: grid;
@@ -243,5 +261,9 @@ button:disabled {
 
     .hint {
         font-size: 0.78rem;
+    }
+
+    .summary-box {
+        font-size: 0.82rem;
     }
 }

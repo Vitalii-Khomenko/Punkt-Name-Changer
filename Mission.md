@@ -188,6 +188,8 @@ Example with Start Point `G01.001` and Start MQ `1`:
 - Numeric mobile keyboard hints for numeric entry fields
 - Auto-scrolling touch log for field feedback
 - Content Security Policy metadata blocks network connections and object embedding
+- Busy status while files are read or rename runs are active
+- Export summary showing loaded files, modified files, and TXT log entries
 
 ### Session Card 1 — File Selection
 - File upload input (multi-file)
@@ -235,6 +237,8 @@ Example with Start Point `G01.001` and Start MQ `1`:
 - [x] TXT rename log export
 - [x] Log memory cap (400 lines)
 - [x] Mobile CSS (touch-friendly inputs, fat buttons, 16 px font)
+- [x] Busy state and visible export summary for smartphone workflows
 - [x] Single-file distribution (`index_singlefile_mobile.html`)
 - [x] Multi-file distribution (`index.html` + `css/` + `js/`)
 - [x] Regression validation suite (`tests/run_validation.py`)
+- [x] Generated single-file build script writes only to `dist/`

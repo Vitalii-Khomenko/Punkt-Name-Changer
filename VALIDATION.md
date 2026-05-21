@@ -20,6 +20,9 @@ python tests/run_validation.py
 | Single-file sync | The single-file CSS matches `css/style.css`, and split JS function definitions are represented in the single-file build. |
 | Security hardening | Both implementations keep pre-read file filtering, size limits, safe prefix validation, and safe suffix validation. |
 | CSP/privacy hardening | HTML files include CSP metadata, and README/SECURITY document local-only privacy guarantees. |
+| Coordinate safety | Regression coverage checks mismatch/guard skip behavior across `.ipkt`, `.iroh`, and `.lqp`. |
+| Busy/export UX | Both implementations keep busy status helpers and visible export summary UI. |
+| Generated build isolation | The generated single-file build script writes only to `dist/` and keeps the smartphone field file untouched. |
 | Project publishing rules | AGENTS.md and rules.txt require validation, commit, and push to GitHub after functional updates. |
 
 ## Important Limitation

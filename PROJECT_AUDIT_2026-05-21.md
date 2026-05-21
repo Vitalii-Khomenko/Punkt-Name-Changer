@@ -18,6 +18,13 @@ The next three audit items were also addressed:
 - README and `SECURITY.md` now document local-only privacy behavior and hosted deployment guidance.
 - The validation suite now checks stronger single-file/split-source synchronization by comparing CSS and verifying split JS function definitions are represented in the single-file build.
 
+The remaining hardening backlog was then closed:
+
+- Coordinate-safety regression tests now cover mismatch/guard skip behavior across `.ipkt`, `.iroh`, and `.lqp`.
+- File reads and rename runs now show a busy status and disable main action controls.
+- A visible export summary now reports loaded files, modified files, and TXT log entries before export.
+- `scripts/build_singlefile_dist.py` can generate a separate single-file build into `dist/` without modifying `index_singlefile_mobile.html`.
+
 ## Executive Summary
 
 PunktNameChanger is a local, browser-only field tool for renaming Leica survey point IDs. The current architecture is appropriate for smartphone field use: files are read locally, processed in memory, and exported back through browser downloads. The app does not send files to a server, does not use cookies or browser storage, and does not load third-party JavaScript.
@@ -26,8 +33,7 @@ Overall security posture: **Good for local/offline field use**.
 
 Main residual risks are operational rather than remote-exploit risks:
 
-- Coordinate-mismatch behavior should receive broader regression coverage across every supported format.
-- Long-running file reads and rename runs could benefit from disabled/loading UI states.
+- No active audit findings remain. Continue field testing with real Leica files before production use.
 
 No critical remote-code-execution, network exfiltration, credential handling, or obvious DOM-XSS issue was found in the reviewed code.
 
@@ -38,7 +44,7 @@ The regression suite was run successfully:
 ```text
 python tests/run_validation.py
 
-Ran 12 tests
+Ran 14 tests
 OK
 ```
 
@@ -50,6 +56,8 @@ The suite currently protects:
 - Single-file CSS and split JS function synchronization checks.
 - Mobile UI helpers.
 - CSP and privacy documentation.
+- Coordinate-safety mismatch/guard coverage across supported formats.
+- Busy status, export summary, and isolated generated build script checks.
 - Required project files.
 - MIT license presence.
 - Publishing rules requiring validation, commit, and GitHub push.
@@ -209,11 +217,11 @@ Strengths:
 - Action buttons are sticky inside the configuration card.
 - The log auto-scrolls and supports touch momentum scrolling.
 - Safe-area padding is enabled.
+- Busy status is shown during file reads and rename runs.
+- Export summary shows loaded files, modified files, and TXT log entries before export.
 
-Recommendations:
+Optional future polish:
 
-- Add disabled/loading states during long file reads and rename runs.
-- Add a visible summary before export showing how many files changed.
 - Consider a "Clear session" button for field workflows where users need an explicit reset.
 
 ## Documentation and Repository Hygiene
@@ -243,14 +251,15 @@ No open cybersecurity findings remain from this audit batch.
 | Low | Export suffix was not constrained. | Added a safe allowlist for export suffixes. |
 | Low | No CSP existed for hosted deployment. | Added CSP metadata and `SECURITY.md` deployment guidance. |
 | Low | Split and single-file logic are duplicated. | Added stronger validation checks for CSS and JS function synchronization. |
+| Low | Coordinate-safety behavior needed broader regression coverage. | Added mismatch/guard skip regression coverage across `.ipkt`, `.iroh`, and `.lqp`. |
+| Low | Long reads/runs lacked disabled/loading UI states. | Added busy status and main action disabling during file read and rename workflows. |
+| Low | Export readiness was only visible in logs. | Added visible export summary for loaded files, modified files, and TXT log entries. |
+| Low | Single-file generation was only a future consideration. | Added `scripts/build_singlefile_dist.py`, which writes only to `dist/`. |
 
 ## Suggested Next Hardening Tasks
 
-1. Add regression tests for coordinate mismatch skips in `.imes/.ipkt`, `.iroh`, and `.lqp`.
-2. Add disabled/loading states during long file reads and rename runs.
-3. Add a visible changed-file summary before export.
-4. Consider a future build script to generate `index_singlefile_mobile.html` from split sources.
+No active hardening tasks remain from this audit. Future improvements should be driven by field feedback.
 
 ## Audit Conclusion
 
-The application is well suited for its current local smartphone workflow. Its strongest cybersecurity property is that survey files stay local and no network channel is used. The audit findings from the first two remediation passes have been addressed. The next useful work is quality and UX hardening: add broader coordinate-mismatch tests, add loading states, and make export summaries more explicit.
+The application is well suited for its current local smartphone workflow. Its strongest cybersecurity property is that survey files stay local and no network channel is used. All audit findings and hardening tasks listed in this audit have been addressed as of the latest remediation pass.

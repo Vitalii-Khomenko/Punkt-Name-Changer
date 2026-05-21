@@ -138,6 +138,24 @@ input[type="file"] {
     color: #888;
 }
 
+.status-line {
+    min-height: 20px;
+    margin-bottom: 12px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #276b4b;
+}
+
+.summary-box {
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid #d8e6dc;
+    border-radius: 8px;
+    background: #f4faf6;
+    color: #2f5d46;
+    font-size: 0.88rem;
+}
+
 /* Grid Layout */
 .grid-2 {
     display: grid;
@@ -252,6 +270,10 @@ button:disabled {
     .hint {
         font-size: 0.78rem;
     }
+
+    .summary-box {
+        font-size: 0.82rem;
+    }
 }
     </style>
 </head>
@@ -280,6 +302,7 @@ button:disabled {
 
         <div class="card">
             <h3>2. Configuration</h3>
+            <div id="busyStatus" class="status-line" aria-live="polite"></div>
             <div class="form-group">
                 <label>Detected Patterns</label>
                 <div id="patternsContainer"></div>
@@ -317,6 +340,8 @@ button:disabled {
                     <input type="text" id="suffix" value="_renamed" placeholder="_renamed" autocomplete="off" spellcheck="false">
                 </div>
             </div>
+
+            <div id="exportSummary" class="summary-box" aria-live="polite">No files loaded yet.</div>
 
             <div class="action-row">
                 <button id="processBtn">Rename</button>
@@ -1121,6 +1146,37 @@ function setElementDisabled(el, disabled) {
     el.disabled = disabled;
 }
 
+function yieldToUi() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function setAppBusy(isBusy, message = '') {
+    const ids = ['fileInput', 'masterFileSelect', 'processBtn', 'exportTxtBtn'];
+    ids.forEach(id => setElementDisabled(document.getElementById(id), isBusy));
+
+    const busyStatus = document.getElementById('busyStatus');
+    if (busyStatus) {
+        busyStatus.textContent = isBusy ? message : '';
+    }
+}
+
+function updateExportSummary() {
+    const summary = document.getElementById('exportSummary');
+    if (!summary) return;
+
+    const entries = Array.isArray(uploadedFileEntries) ? uploadedFileEntries.filter(Boolean) : [];
+    if (entries.length === 0) {
+        summary.textContent = 'No files loaded yet.';
+        return;
+    }
+
+    const modifiedCount = entries.filter(entry => entry.modified).length;
+    const logCount = Array.isArray(sessionRenameReportLines) ? sessionRenameReportLines.length : 0;
+    const fileWord = entries.length === 1 ? 'file' : 'files';
+    const modifiedWord = modifiedCount === 1 ? 'file' : 'files';
+    summary.textContent = `${entries.length} ${fileWord} loaded. ${modifiedCount} modified ${modifiedWord} ready for export. TXT log entries: ${logCount}.`;
+}
+
 function updateManualModeUi() {
     const manualEnabled = !!document.getElementById('useLfNrStart')?.checked;
     const manualFields = document.getElementById('manualOverrideFields');
@@ -1380,76 +1436,87 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('exportTxtBtn').addEventListener('click', exportTxtReport);
     document.getElementById('useLfNrStart').addEventListener('change', updateManualModeUi);
     updateManualModeUi();
+    updateExportSummary();
 });
 
 async function handleFileSelect(event) {
-    // New session starts when user selects new input files.
-    clearLog();
-    sessionRenameReportLines = [];
-    detectedPatterns = [];
-    coordinateMap.clear();
-    lastRunMasterName = null;
+    setAppBusy(true, 'Reading selected files...');
+    await yieldToUi();
 
-    const selectedFiles = Array.from(event.target.files);
-    const acceptedResult = filterAcceptedInputFiles(selectedFiles);
-    for (const warning of acceptedResult.warnings) logWarning(warning);
+    try {
+        // New session starts when user selects new input files.
+        clearLog();
+        sessionRenameReportLines = [];
+        detectedPatterns = [];
+        coordinateMap.clear();
+        lastRunMasterName = null;
 
-    uploadedFiles = acceptedResult.accepted;
-    uploadedFileEntries = new Array(uploadedFiles.length);
-    const select = document.getElementById('masterFileSelect');
-    select.innerHTML = '';
+        const selectedFiles = Array.from(event.target.files);
+        const acceptedResult = filterAcceptedInputFiles(selectedFiles);
+        for (const warning of acceptedResult.warnings) logWarning(warning);
 
-    if (uploadedFiles.length === 0) {
-        select.innerHTML = '<option value="">No files selected</option>';
-        if (selectedFiles.length > 0) logError('No supported files remained after safety checks.');
-        return;
-    }
+        uploadedFiles = acceptedResult.accepted;
+        uploadedFileEntries = new Array(uploadedFiles.length);
+        updateExportSummary();
+        const select = document.getElementById('masterFileSelect');
+        select.innerHTML = '';
 
-    let selectedIndex = 0;
-    for (let i = 0; i < uploadedFiles.length; i++) {
-        const ext = getFileExtension(uploadedFiles[i].name);
-        if (ext === 'ipkt' || ext === 'imes') {
-            selectedIndex = i;
-            break;
-        } else if (ext === 'lqp' && selectedIndex === 0) {
-            selectedIndex = i;
+        if (uploadedFiles.length === 0) {
+            select.innerHTML = '<option value="">No files selected</option>';
+            if (selectedFiles.length > 0) logError('No supported files remained after safety checks.');
+            return;
         }
-    }
 
-    uploadedFiles.forEach((file, index) => {
-        const opt = document.createElement('option');
-        opt.value = index;
-        opt.text = file.name;
-        select.add(opt);
-    });
-
-    select.selectedIndex = selectedIndex;
-    log(`Loaded ${uploadedFiles.length} files (${formatBytes(acceptedResult.totalBytes)}). Default master: ${uploadedFiles[selectedIndex].name}`);
-
-    log('Reading files into session memory...');
-    let loadedCount = 0;
-    for (let i = 0; i < uploadedFiles.length; i++) {
-        const file = uploadedFiles[i];
-        try {
-            const text = await readFile(file);
-            const ext = getFileExtension(file.name);
-            uploadedFileEntries[i] = {
-                file,
-                name: file.name,
-                ext,
-                originalContent: text,
-                currentContent: text,
-                modified: false
-            };
-            loadedCount++;
-        } catch (e) {
-            logError(`Failed to read ${file.name}: ${e.message || e}`);
-            uploadedFileEntries[i] = null;
+        let selectedIndex = 0;
+        for (let i = 0; i < uploadedFiles.length; i++) {
+            const ext = getFileExtension(uploadedFiles[i].name);
+            if (ext === 'ipkt' || ext === 'imes') {
+                selectedIndex = i;
+                break;
+            } else if (ext === 'lqp' && selectedIndex === 0) {
+                selectedIndex = i;
+            }
         }
-    }
-    logSuccess(`Session ready: ${loadedCount}/${uploadedFiles.length} files loaded.`);
 
-    await analyzeCurrentMaster();
+        uploadedFiles.forEach((file, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.text = file.name;
+            select.add(opt);
+        });
+
+        select.selectedIndex = selectedIndex;
+        log(`Loaded ${uploadedFiles.length} files (${formatBytes(acceptedResult.totalBytes)}). Default master: ${uploadedFiles[selectedIndex].name}`);
+
+        log('Reading files into session memory...');
+        let loadedCount = 0;
+        for (let i = 0; i < uploadedFiles.length; i++) {
+            const file = uploadedFiles[i];
+            try {
+                const text = await readFile(file);
+                const ext = getFileExtension(file.name);
+                uploadedFileEntries[i] = {
+                    file,
+                    name: file.name,
+                    ext,
+                    originalContent: text,
+                    currentContent: text,
+                    modified: false
+                };
+                loadedCount++;
+                updateExportSummary();
+            } catch (e) {
+                logError(`Failed to read ${file.name}: ${e.message || e}`);
+                uploadedFileEntries[i] = null;
+            }
+        }
+        logSuccess(`Session ready: ${loadedCount}/${uploadedFiles.length} files loaded.`);
+
+        await analyzeCurrentMaster();
+    } finally {
+        setAppBusy(false);
+        updateExportSummary();
+    }
 }
 
 async function analyzeCurrentMaster() {
@@ -1486,58 +1553,128 @@ async function analyzeCurrentMaster() {
 window.analyzeCurrentMaster = analyzeCurrentMaster;
 
 async function processFiles() {
-    const masterIndexValue = document.getElementById('masterFileSelect').value;
-    if (masterIndexValue === '') return alert('Please select files first.');
-    const masterIndex = Number(masterIndexValue);
-    if (!Number.isInteger(masterIndex) || masterIndex < 0 || masterIndex >= uploadedFiles.length) {
-        return logError('Invalid master file selection. Please reselect files.');
-    }
+    setAppBusy(true, 'Renaming points...');
+    await yieldToUi();
 
-    const masterFile = uploadedFiles[masterIndex];
-    const masterEntry = uploadedFileEntries[masterIndex];
-    const manualEnabled = !!document.getElementById('useLfNrStart')?.checked;
-    const startLfNr = normalizeLfNr(document.getElementById('startLfNr').value);
-    const manualNewName = (document.getElementById('manualNewPointName')?.value || '').trim();
-
-    if (!masterEntry) {
-        return logError('Master file content is not loaded. Please reselect files.');
-    }
-
-    // Used for TXT log filename at export time (stable even if user changes Master selection later).
-    lastRunMasterName = masterFile.name;
-    log(`Rename run started. Master: ${masterFile.name}`);
-
-    // Build Coordinate Map from Master (baseline/original content)
-    buildCoordinateMap(masterEntry.originalContent, masterFile.name);
-
-    if (coordinateMap.size === 0) {
-        return logError('No coordinates found in Master file! Check format.');
-    }
-    log(`Indexed ${coordinateMap.size} points from master.`);
-    detectedPatterns = detectPatternsFromMaster();
-
-    const masterExt = getFileExtension(masterFile.name);
-    if (manualEnabled) {
-        if (!(masterExt === 'imes' || masterExt === 'ipkt')) {
-            return logError('Manual <LfNr> mode requires Master to be .imes or .ipkt.');
-        }
-        if (!startLfNr) {
-            return logError('Invalid Start <LfNr>. Please enter digits like 22 or 000022.');
-        }
-        if (!manualNewName) {
-            return logError('Manual mode: New Point Name is required.');
-        }
-        if (manualNewName.includes('|') || /\s/.test(manualNewName)) {
-            return logError('Manual mode: New Point Name must not contain spaces or "|".');
+    try {
+        const masterIndexValue = document.getElementById('masterFileSelect').value;
+        if (masterIndexValue === '') return alert('Please select files first.');
+        const masterIndex = Number(masterIndexValue);
+        if (!Number.isInteger(masterIndex) || masterIndex < 0 || masterIndex >= uploadedFiles.length) {
+            return logError('Invalid master file selection. Please reselect files.');
         }
 
-        const oldId = getPointIdFromMasterByLfNr(masterEntry.originalContent, startLfNr);
-        if (!oldId) {
-            return logError(`Manual mode: <LfNr> "${startLfNr}" not found in master.`);
+        const masterFile = uploadedFiles[masterIndex];
+        const masterEntry = uploadedFileEntries[masterIndex];
+        const manualEnabled = !!document.getElementById('useLfNrStart')?.checked;
+        const startLfNr = normalizeLfNr(document.getElementById('startLfNr').value);
+        const manualNewName = (document.getElementById('manualNewPointName')?.value || '').trim();
+
+        if (!masterEntry) {
+            return logError('Master file content is not loaded. Please reselect files.');
         }
-        if (!coordinateMap.has(oldId)) {
-            return logError(`Manual mode: Point at <LfNr> ${startLfNr} is not eligible (not found in Master coordinate map): "${oldId}"`);
+
+        lastRunMasterName = masterFile.name;
+        log(`Rename run started. Master: ${masterFile.name}`);
+
+        buildCoordinateMap(masterEntry.originalContent, masterFile.name);
+
+        if (coordinateMap.size === 0) {
+            return logError('No coordinates found in Master file! Check format.');
         }
+        log(`Indexed ${coordinateMap.size} points from master.`);
+        detectedPatterns = detectPatternsFromMaster();
+
+        const masterExt = getFileExtension(masterFile.name);
+        if (manualEnabled) {
+            if (!(masterExt === 'imes' || masterExt === 'ipkt')) {
+                return logError('Manual <LfNr> mode requires Master to be .imes or .ipkt.');
+            }
+            if (!startLfNr) {
+                return logError('Invalid Start <LfNr>. Please enter digits like 22 or 000022.');
+            }
+            if (!manualNewName) {
+                return logError('Manual mode: New Point Name is required.');
+            }
+            if (manualNewName.includes('|') || /\s/.test(manualNewName)) {
+                return logError('Manual mode: New Point Name must not contain spaces or "|".');
+            }
+
+            const oldId = getPointIdFromMasterByLfNr(masterEntry.originalContent, startLfNr);
+            if (!oldId) {
+                return logError(`Manual mode: <LfNr> "${startLfNr}" not found in master.`);
+            }
+            if (!coordinateMap.has(oldId)) {
+                return logError(`Manual mode: Point at <LfNr> ${startLfNr} is not eligible (not found in Master coordinate map): "${oldId}"`);
+            }
+
+            let totalRenames = 0;
+            let filesChanged = 0;
+
+            const entriesToProcess = [
+                uploadedFileEntries[masterIndex],
+                ...uploadedFileEntries.filter((entry, idx) => idx !== masterIndex && !!entry)
+            ].filter(Boolean);
+
+            for (const entry of entriesToProcess) {
+                try {
+                    const result = processSingleFileSinglePointRename(
+                        entry.currentContent,
+                        entry.ext,
+                        oldId,
+                        manualNewName,
+                        {
+                            fileName: entry.name,
+                            reportLines: sessionRenameReportLines
+                        }
+                    );
+                    if (result.modified) {
+                        entry.currentContent = result.content;
+                        entry.modified = true;
+                        filesChanged++;
+                        totalRenames += result.count;
+                    }
+                } catch (e) {
+                    logError(`Error processing ${entry.name}: ${e.message}`);
+                }
+            }
+
+            if (totalRenames > 0) {
+                logSuccess(`Manual: <LfNr> ${startLfNr} | ${oldId} -> ${manualNewName} | renames: ${totalRenames} | files changed: ${filesChanged}`);
+            } else {
+                logWarning(`Manual: <LfNr> ${startLfNr} | ${oldId} -> ${manualNewName} | no changes (point not found in current session files).`);
+            }
+            return;
+        }
+
+        // Normal (pattern) mode
+        const configs = getPatternConfigsFromUi();
+        log(`Pattern mode. Patterns: ${configs.length}`);
+
+        const validationErrors = validatePatternConfigs(detectedPatterns, configs, {
+            useLfNrStart: false,
+            availableAfterLfNr: null
+        });
+        if (validationErrors.length > 0) {
+            for (const msg of validationErrors) logError(msg);
+            return;
+        }
+        logSuccess('Validation passed for all patterns.');
+
+        const sessions = configs.map(cfg => ({
+            patternKey: cfg.patternKey,
+            basePrefix: cfg.basePrefix,
+            startOldId: `${cfg.patternKey}.${pad3(cfg.startIndex)}`,
+            startIndex: cfg.startIndex,
+            startMq: cfg.startMq,
+            startPairIndex: Math.floor((cfg.startIndex - 1) / 2),
+            mqIndex: cfg.startMq,
+            limit: cfg.limit,
+            renamedCount: 0,
+            active: false,
+            done: false,
+            lastSuffixCode: null
+        }));
 
         let totalRenames = 0;
         let filesChanged = 0;
@@ -1549,14 +1686,14 @@ async function processFiles() {
 
         for (const entry of entriesToProcess) {
             try {
-                const result = processSingleFileSinglePointRename(
+                const result = processSingleFileMultiPattern(
                     entry.currentContent,
                     entry.ext,
-                    oldId,
-                    manualNewName,
+                    sessions,
                     {
                         fileName: entry.name,
-                        reportLines: sessionRenameReportLines
+                        reportLines: sessionRenameReportLines,
+                        useLfNrStart: false
                     }
                 );
                 if (result.modified) {
@@ -1570,76 +1707,12 @@ async function processFiles() {
             }
         }
 
-        if (totalRenames > 0) {
-            logSuccess(`Manual: <LfNr> ${startLfNr} | ${oldId} -> ${manualNewName} | renames: ${totalRenames} | files changed: ${filesChanged}`);
-        } else {
-            logWarning(`Manual: <LfNr> ${startLfNr} | ${oldId} -> ${manualNewName} | no changes (point not found in current session files).`);
-        }
-        return;
+        const summary = sessions.map(s => `${s.patternKey}: ${s.renamedCount}/${s.limit}, next MQ ${pad2(s.mqIndex)}`).join(' | ');
+        logSuccess(`Pattern run done. Renames: ${totalRenames} | files changed: ${filesChanged} | ${summary}`);
+    } finally {
+        setAppBusy(false);
+        updateExportSummary();
     }
-
-    // Normal (pattern) mode
-    const configs = getPatternConfigsFromUi();
-    log(`Pattern mode. Patterns: ${configs.length}`);
-
-    const validationErrors = validatePatternConfigs(detectedPatterns, configs, {
-        useLfNrStart: false,
-        availableAfterLfNr: null
-    });
-    if (validationErrors.length > 0) {
-        for (const msg of validationErrors) logError(msg);
-        return;
-    }
-    logSuccess('Validation passed for all patterns.');
-
-    const sessions = configs.map(cfg => ({
-        patternKey: cfg.patternKey,
-        basePrefix: cfg.basePrefix,
-        startOldId: `${cfg.patternKey}.${pad3(cfg.startIndex)}`,
-        startIndex: cfg.startIndex,
-        startMq: cfg.startMq,
-        startPairIndex: Math.floor((cfg.startIndex - 1) / 2),
-        mqIndex: cfg.startMq,
-        limit: cfg.limit,
-        renamedCount: 0,
-        active: false,
-        done: false,
-        lastSuffixCode: null
-    }));
-
-    let totalRenames = 0;
-    let filesChanged = 0;
-
-    const entriesToProcess = [
-        uploadedFileEntries[masterIndex],
-        ...uploadedFileEntries.filter((entry, idx) => idx !== masterIndex && !!entry)
-    ].filter(Boolean);
-
-    for (const entry of entriesToProcess) {
-        try {
-            const result = processSingleFileMultiPattern(
-                entry.currentContent,
-                entry.ext,
-                sessions,
-                {
-                    fileName: entry.name,
-                    reportLines: sessionRenameReportLines,
-                    useLfNrStart: false
-                }
-            );
-            if (result.modified) {
-                entry.currentContent = result.content;
-                entry.modified = true;
-                filesChanged++;
-                totalRenames += result.count;
-            }
-        } catch (e) {
-            logError(`Error processing ${entry.name}: ${e.message}`);
-        }
-    }
-
-    const summary = sessions.map(s => `${s.patternKey}: ${s.renamedCount}/${s.limit}, next MQ ${pad2(s.mqIndex)}`).join(' | ');
-    logSuccess(`Pattern run done. Renames: ${totalRenames} | files changed: ${filesChanged} | ${summary}`);
 }
 
 function exportTxtReport() {
@@ -1677,8 +1750,10 @@ function exportTxtReport() {
     if (downloadedFiles === 0 && !exportedTxt) {
         return logWarning('Nothing to export yet. Run Rename first.');
     }
+    updateExportSummary();
     logSuccess(`Export complete. Files: ${downloadedFiles}, TXT: ${exportedTxt ? 'yes' : 'no'}.`);
 }
+
     </script>
 </body>
 </html>

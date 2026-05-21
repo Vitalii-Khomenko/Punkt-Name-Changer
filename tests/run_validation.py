@@ -22,6 +22,7 @@ AGENTS_PATH = ROOT / "AGENTS.md"
 VALIDATION_PATH = ROOT / "VALIDATION.md"
 LICENSE_PATH = ROOT / "LICENSE"
 SECURITY_PATH = ROOT / "SECURITY.md"
+BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
@@ -155,6 +156,75 @@ def process_ipkt_pattern(content: str, session: dict[str, object]) -> tuple[str,
     return "\n".join(output), count
 
 
+def process_single_point_rename(
+    content: str,
+    ext: str,
+    old_id: str,
+    new_name: str,
+    coordinates: dict[str, tuple[float, float]],
+) -> tuple[str, int]:
+    if old_id not in coordinates:
+        return content, 0
+
+    output: list[str] = []
+    count = 0
+
+    for line in content.splitlines():
+        if ext in {"imes", "ipkt"}:
+            yxz_index = line.find("|YXZ|")
+            if yxz_index > -1 and extract_imes_ipkt_point_id(line) == old_id:
+                parts = line[yxz_index + 5 :].split("|")
+                if len(parts) >= 2:
+                    y = float(parts[0].strip())
+                    x = float(parts[1].strip())
+                    master_y, master_x = coordinates[old_id]
+                    if abs(master_y - y) <= 0.05 and abs(master_x - x) <= 0.05:
+                        line = replace_imes_ipkt_id(line, new_name)
+                        count += 1
+            output.append(line)
+            continue
+
+        if ext == "iroh":
+            parts = [part.strip() for part in line.split("|")]
+            pid = None
+            y = None
+            x = None
+            is_header = False
+            for part in parts:
+                if part.startswith("PID:"):
+                    pid = part[4:].strip()
+                elif part.startswith("Y:"):
+                    y = float(part[2:].strip())
+                elif part.startswith("X:"):
+                    x = float(part[2:].strip())
+                elif part == "CLS:STAT" or part == "CODE:iGeo":
+                    is_header = True
+
+            if pid == old_id and not is_header and y is not None and x is not None:
+                master_y, master_x = coordinates[old_id]
+                if abs(master_y - y) <= 0.05 and abs(master_x - x) <= 0.05:
+                    line = line.replace(old_id, new_name, 1)
+                    count += 1
+            output.append(line)
+            continue
+
+        if ext == "lqp":
+            tokens = line.strip().split()
+            if len(tokens) >= 3 and tokens[0] == old_id and old_id in coordinates:
+                second = float(tokens[1])
+                third = float(tokens[2])
+                looks_like_measurement = 0 <= second <= 400 and 0 <= third <= 400
+                if looks_like_measurement:
+                    line = line.replace(old_id, new_name, 1)
+                    count += 1
+            output.append(line)
+            continue
+
+        output.append(line)
+
+    return "\n".join(output), count
+
+
 def make_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
     return {
         "patternKey": "G01",
@@ -199,6 +269,31 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertNotIn("3560.MQ36.03", output)
         self.assertEqual(session["mqIndex"], 5)
 
+    def test_coordinate_safety_skips_mismatches_across_supported_formats(self) -> None:
+        master = {"G01.001": (2600001.0, 5700001.0)}
+
+        ipkt = make_ipkt_line(1, "G01.001").replace("2600001.00000", "2600010.00000")
+        output, count = process_single_point_rename(ipkt, "ipkt", "G01.001", "3560.MQ01.03", master)
+        self.assertEqual(count, 0)
+        self.assertIn("G01.001", output)
+        self.assertNotIn("3560.MQ01.03", output)
+
+        iroh = "PID:             G01.001|Y:2600010.000|X:5700001.000|CLS:MEAS|"
+        output, count = process_single_point_rename(iroh, "iroh", "G01.001", "3560.MQ01.03", master)
+        self.assertEqual(count, 0)
+        self.assertIn("G01.001", output)
+        self.assertNotIn("3560.MQ01.03", output)
+
+        lqp = "G01.001 100.000 100.000 1.0"
+        output, count = process_single_point_rename(lqp, "lqp", "G01.001", "3560.MQ01.03", {})
+        self.assertEqual(count, 0)
+        self.assertIn("G01.001", output)
+
+        lqp_non_measurement = "G01.001 401.000 100.000 1.0"
+        output, count = process_single_point_rename(lqp_non_measurement, "lqp", "G01.001", "3560.MQ01.03", master)
+        self.assertEqual(count, 0)
+        self.assertIn("G01.001", output)
+
 
 class ProjectInvariantTests(unittest.TestCase):
     def test_required_project_files_exist(self) -> None:
@@ -212,6 +307,7 @@ class ProjectInvariantTests(unittest.TestCase):
             VALIDATION_PATH,
             LICENSE_PATH,
             SECURITY_PATH,
+            BUILD_SCRIPT_PATH,
             RENAMER_PATH,
             MAIN_PATH,
         ]
@@ -260,14 +356,25 @@ class ProjectInvariantTests(unittest.TestCase):
             self.assertIn("viewport-fit=cover", source)
             self.assertIn('class="action-row"', source)
             self.assertIn('inputmode="numeric"', source)
+            self.assertIn('id="busyStatus"', source)
+            self.assertIn('id="exportSummary"', source)
 
         for source in [css, html]:
             self.assertIn("position: sticky", source)
             self.assertIn("env(safe-area-inset-bottom)", source)
             self.assertIn("-webkit-overflow-scrolling: touch", source)
+            self.assertIn(".status-line", source)
+            self.assertIn(".summary-box", source)
 
         for source in [utils, html]:
             self.assertIn("logDiv.scrollTop = logDiv.scrollHeight", source)
+
+        main = MAIN_PATH.read_text(encoding="utf-8")
+        for source in [main, html]:
+            self.assertIn("function setAppBusy", source)
+            self.assertIn("function updateExportSummary", source)
+            self.assertIn("setAppBusy(true, 'Reading selected files...')", source)
+            self.assertIn("setAppBusy(true, 'Renaming points...')", source)
 
     def test_security_hardening_checks_are_present(self) -> None:
         utils = (ROOT / "js" / "utils.js").read_text(encoding="utf-8")
@@ -305,6 +412,16 @@ class ProjectInvariantTests(unittest.TestCase):
         self.assertIn("Files stay local in the browser tab and are not uploaded.", readme)
         self.assertIn("The app does not intentionally use:", security)
         self.assertIn("Content-Security-Policy", security)
+
+    def test_generated_single_file_script_writes_only_to_dist(self) -> None:
+        script = BUILD_SCRIPT_PATH.read_text(encoding="utf-8")
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertIn('DIST_DIR = ROOT / "dist"', script)
+        self.assertIn('OUTPUT_PATH = DIST_DIR / "index_singlefile_mobile.generated.html"', script)
+        self.assertIn("does not modify", script)
+        self.assertIn("index_singlefile_mobile.html", script)
+        self.assertIn("dist/", gitignore)
 
     def test_project_requires_validation_commit_and_github_push(self) -> None:
         agents = AGENTS_PATH.read_text(encoding="utf-8")

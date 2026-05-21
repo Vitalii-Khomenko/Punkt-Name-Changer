@@ -190,6 +190,8 @@ The on-screen log shows:
 - Numeric fields request numeric mobile keyboards where possible.
 - The log auto-scrolls to the newest message and supports touch momentum scrolling.
 - Safe-area padding is enabled for modern phone browser viewports.
+- File reads and rename runs show a busy status and disable the main action controls.
+- The configuration card shows an export summary with loaded files, modified files, and TXT log entries.
 
 ---
 
@@ -215,6 +217,7 @@ js/renamer.js                 — renaming engine (pattern mode + manual mode)
 js/main.js                    — UI orchestration, session management, export
 Mission.md                    — detailed product/logic mission document
 tests/run_validation.py       — regression validation suite
+scripts/build_singlefile_dist.py — generated single-file builder, writes only to dist/
 AGENTS.md                     — agent instructions
 rules.txt                     — development and publishing rules
 VALIDATION.md                 — validation notes
@@ -230,6 +233,14 @@ Run the regression suite with:
 ```bash
 python tests/run_validation.py
 ```
+
+Generate a separate single-file build without touching the smartphone field file:
+
+```bash
+python scripts/build_singlefile_dist.py
+```
+
+The generated file is written to `dist/index_singlefile_mobile.generated.html`.
 
 ## License
 

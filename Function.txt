@@ -10,6 +10,7 @@ Source of truth:
 - Split implementation: `js/utils.js`, `js/parsers.js`, `js/renamer.js`, `js/main.js`
 - Regression tests: `tests/run_validation.py`
 - Security and deployment guidance: `SECURITY.md`
+- Optional generated single-file build: `scripts/build_singlefile_dist.py`
 
 Core behavior:
 
@@ -25,6 +26,9 @@ Core behavior:
 - Pattern base prefixes and output suffixes may contain only letters, numbers, dot, underscore, and hyphen.
 - Files stay local in the browser session; no remote API, analytics, cookies, or browser storage are used.
 - Content Security Policy metadata blocks network connections and object embedding.
+- Busy status disables main action controls during file reads and rename runs.
+- Export summary reports loaded files, modified files, and TXT log entries.
+- The generated single-file build script writes only to `dist/` and does not modify `index_singlefile_mobile.html`.
 
 MQ numbering rule:
 
