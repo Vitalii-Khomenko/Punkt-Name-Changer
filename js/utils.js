@@ -104,6 +104,7 @@ function appendLog(msg, type) {
     logDiv.appendChild(span);
     logDiv.appendChild(document.createTextNode('\n'));
     enforceLogLimit(logDiv);
+    logDiv.scrollTop = logDiv.scrollHeight;
 }
 
 function logSuccess(msg) { appendLog(msg, 'success'); }

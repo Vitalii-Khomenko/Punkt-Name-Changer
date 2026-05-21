@@ -1,0 +1,17 @@
+# Local editor and OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Python test/cache files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local generated outputs
+*_renamed.*
+*_log.txt
+*.tmp
+*.bak

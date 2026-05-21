@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Leica Mobile Renamer V3</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -47,7 +47,7 @@
                 </div>
                 <div class="form-group">
                     <label for="startLfNr">Start &lt;LfNr&gt;</label>
-                    <input type="text" id="startLfNr" value="000001" placeholder="e.g. 22 or 000022">
+                    <input type="text" id="startLfNr" value="000001" placeholder="e.g. 22 or 000022" inputmode="numeric" autocomplete="off">
                     <small class="hint">Used only when manual mode is enabled.</small>
                 </div>
             </div>
@@ -56,7 +56,7 @@
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="manualNewPointName">Manual: New Point Name</label>
-                        <input type="text" id="manualNewPointName" value="" placeholder="e.g. 3560.MQ01.03">
+                        <input type="text" id="manualNewPointName" value="" placeholder="e.g. 3560.MQ01.03" autocomplete="off" autocapitalize="characters" spellcheck="false">
                         <small class="hint">No spaces. The tool applies this rename across the current session files.</small>
                     </div>
                 </div>
@@ -65,12 +65,14 @@
             <div class="grid-2">
                 <div class="form-group">
                     <label for="suffix">Output Suffix</label>
-                    <input type="text" id="suffix" value="_renamed" placeholder="_renamed">
+                    <input type="text" id="suffix" value="_renamed" placeholder="_renamed" autocomplete="off" spellcheck="false">
                 </div>
             </div>
 
-            <button id="processBtn">Rename</button>
-            <button id="exportTxtBtn" type="button">Export TXT</button>
+            <div class="action-row">
+                <button id="processBtn">Rename</button>
+                <button id="exportTxtBtn" type="button">Export TXT</button>
+            </div>
         </div>
 
         <div class="card">

@@ -174,6 +174,18 @@ function processSingleFileSinglePointRename(content, ext, oldId, newName, option
     };
 }
 
+function getPairIndexFromPointIndex(index) {
+    return Math.floor((index - 1) / 2);
+}
+
+function getMqIndexForParsedPoint(session, parsedPointId) {
+    const startMq = Number.isInteger(session.startMq) ? session.startMq : session.mqIndex;
+    const startPairIndex = Number.isInteger(session.startPairIndex)
+        ? session.startPairIndex
+        : getPairIndexFromPointIndex(parsePointId(session.startOldId)?.index || parsedPointId.index);
+    return startMq + getPairIndexFromPointIndex(parsedPointId.index) - startPairIndex;
+}
+
 function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
     if (content.length > 5 * 1024 * 1024 && !content.includes('\n')) {
         throw new Error('File too large and lacks newlines. Possible binary or corrupted file.');
@@ -412,23 +424,12 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
 
                     if (valid) {
                         const suffixCode = getSuffixCodeFromPointId(parsed);
-                        const isOddSuffix = (suffixCode === '01' || suffixCode === '03');
-                        const isEvenSuffix = (suffixCode === '02' || suffixCode === '04');
-
-                        // If current is odd and previous was also odd, the previous had no
-                        // even partner to close it — start a new MQ for the current point.
-                        if (isOddSuffix && session.lastSuffixCode !== null) {
-                            const prevWasOdd = (session.lastSuffixCode === '01' || session.lastSuffixCode === '03');
-                            if (prevWasOdd) session.mqIndex++;
-                        }
-
-                        const mqString = pad2(session.mqIndex);
+                        const mqIndex = getMqIndexForParsedPoint(session, parsed);
+                        const mqString = pad2(mqIndex);
                         const newName = `${session.basePrefix}.MQ${mqString}.${suffixCode}`;
 
                         session.lastSuffixCode = suffixCode;
-
-                        // After an even-suffix point the pair is complete — advance MQ.
-                        if (isEvenSuffix) session.mqIndex++;
+                        session.mqIndex = Math.max(session.mqIndex, mqIndex + 1);
 
                         if (patternType === 'imes') {
                             const yxzIdx = line.indexOf('|YXZ|');

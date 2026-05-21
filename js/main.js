@@ -144,6 +144,9 @@ function renderPatternConfig(patterns) {
         baseInput.value = '';
         baseInput.placeholder = 'e.g. 3560';
         baseInput.dataset.role = 'basePrefix';
+        baseInput.inputMode = 'decimal';
+        baseInput.autocomplete = 'off';
+        baseInput.spellcheck = false;
         baseGroup.appendChild(baseLabel);
         baseGroup.appendChild(baseInput);
         grid.appendChild(baseGroup);
@@ -157,6 +160,7 @@ function renderPatternConfig(patterns) {
         mqInput.value = '1';
         mqInput.min = '1';
         mqInput.dataset.role = 'startMq';
+        mqInput.inputMode = 'numeric';
         mqGroup.appendChild(mqLabel);
         mqGroup.appendChild(mqInput);
         grid.appendChild(mqGroup);
@@ -171,6 +175,7 @@ function renderPatternConfig(patterns) {
         startInput.min = '1';
         startInput.max = '998';
         startInput.dataset.role = 'startIndex';
+        startInput.inputMode = 'numeric';
         startGroup.appendChild(startLabel);
         startGroup.appendChild(startInput);
         grid.appendChild(startGroup);
@@ -184,6 +189,7 @@ function renderPatternConfig(patterns) {
         qtyInput.value = String(pattern.count);
         qtyInput.min = '1';
         qtyInput.dataset.role = 'limit';
+        qtyInput.inputMode = 'numeric';
         qtyGroup.appendChild(qtyLabel);
         qtyGroup.appendChild(qtyInput);
         grid.appendChild(qtyGroup);
@@ -478,6 +484,9 @@ async function processFiles() {
         patternKey: cfg.patternKey,
         basePrefix: cfg.basePrefix,
         startOldId: `${cfg.patternKey}.${pad3(cfg.startIndex)}`,
+        startIndex: cfg.startIndex,
+        startMq: cfg.startMq,
+        startPairIndex: Math.floor((cfg.startIndex - 1) / 2),
         mqIndex: cfg.startMq,
         limit: cfg.limit,
         renamedCount: 0,

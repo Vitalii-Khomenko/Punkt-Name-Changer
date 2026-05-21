@@ -5,20 +5,26 @@
     --card-bg: #fff;
     --text-color: #333;
     --spacing-unit: 15px;
+    --border-color: #d9e2e7;
+    --focus-color: #145f93;
 }
 
 body {
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     margin: 0;
-    padding: var(--spacing-unit);
+    padding: max(var(--spacing-unit), env(safe-area-inset-top)) max(var(--spacing-unit), env(safe-area-inset-right)) max(var(--spacing-unit), env(safe-area-inset-bottom)) max(var(--spacing-unit), env(safe-area-inset-left));
     background-color: var(--background);
     color: var(--text-color);
     line-height: 1.5;
+    min-height: 100dvh;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
 }
 
 .container {
     max-width: 800px;
     margin: 0 auto;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
 
 /* Mobile Header */
@@ -45,8 +51,8 @@ p {
 /* Cards */
 .card {
     background: var(--card-bg);
-    padding: 20px;
-    border-radius: 12px;
+    padding: 16px;
+    border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     margin-bottom: 15px;
 }
@@ -79,9 +85,10 @@ input[type="text"],
 input[type="number"],
 select {
     width: 100%;
+    min-height: 48px;
     padding: 12px; /* Bigger touch target */
     font-size: 16px; /* Prevent automatic zoom on mobile browsers */
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     box-sizing: border-box;
     background-color: #fafafa;
@@ -89,11 +96,28 @@ select {
     -webkit-appearance: none; /* Normalize iOS appearance */
 }
 
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    border-color: var(--focus-color);
+    box-shadow: 0 0 0 3px rgba(20, 95, 147, 0.16);
+    outline: none;
+}
+
+input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    margin-right: 8px;
+    vertical-align: middle;
+    accent-color: var(--primary-color);
+}
+
 input[type="file"] {
     padding: 15px;
     border: 2px dashed #3498db;
     border-radius: 8px;
     width: 100%;
+    box-sizing: border-box;
     background: #f0f7fb;
     text-align: center;
     font-size: 0.9rem;
@@ -125,20 +149,57 @@ button {
     background-color: var(--primary-color);
     color: white;
     border: none;
-    padding: 16px; /* Fat finger friendly */
+    min-height: 52px;
+    padding: 14px 16px; /* Fat finger friendly */
     border-radius: 8px;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     width: 100%;
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
     transition: transform 0.1s, background-color 0.2s;
+    touch-action: manipulation;
+}
+
+.action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    position: sticky;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 2;
     margin-top: 10px;
+    padding: 10px 0 0;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.88), var(--card-bg) 35%);
+}
+
+.action-row button {
+    margin-top: 0;
 }
 
 button:active {
     transform: scale(0.98);
     background-color: var(--primary-dark);
+}
+
+button:focus-visible {
+    outline: 3px solid rgba(20, 95, 147, 0.35);
+    outline-offset: 2px;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+}
+
+#exportTxtBtn {
+    background-color: #276b4b;
+    box-shadow: 0 2px 4px rgba(39, 107, 75, 0.25);
+}
+
+#exportTxtBtn:active {
+    background-color: #1e563c;
 }
 
 /* Log Console */
@@ -148,10 +209,12 @@ button:active {
     padding: 12px;
     border-radius: 8px;
     font-family: 'Consolas', monospace;
-    font-size: 0.85rem;
-    height: 150px; /* Shorter on mobile to save space */
+    font-size: 0.82rem;
+    height: clamp(170px, 28dvh, 240px);
     overflow-y: auto;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    -webkit-overflow-scrolling: touch;
     /* Custom scrollbar for webkit */
     scrollbar-width: thin;
     scrollbar-color: #555 #2c3e50;
@@ -160,3 +223,25 @@ button:active {
 .success { color: #2ecc71; font-weight: bold; }
 .warning { color: #f1c40f; }
 .error { color: #e74c3c; font-weight: bold; }
+
+@media (max-width: 420px) {
+    body {
+        padding: 10px;
+    }
+
+    header {
+        margin-bottom: 12px;
+    }
+
+    h1 {
+        font-size: 1.35rem;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    .hint {
+        font-size: 0.78rem;
+    }
+}

@@ -1,0 +1,48 @@
+PunktNameChanger Function Notes
+
+This project renames Leica survey point IDs in `.imes`, `.ipkt`, `.iroh`, and
+`.lqp` files while preserving file formatting and validating coordinates against
+a selected master file.
+
+Source of truth:
+
+- Single-file mobile app: `index_singlefile_mobile.html`
+- Split implementation: `js/utils.js`, `js/parsers.js`, `js/renamer.js`, `js/main.js`
+- Regression tests: `tests/run_validation.py`
+
+Core behavior:
+
+- Supported point IDs use dot format only: `G01.001..G10.998` and
+  `P01.001..P10.998`.
+- `G` odd points receive suffix `03`; `G` even points receive suffix `04`.
+- `P` odd points receive suffix `01`; `P` even points receive suffix `02`.
+- Pattern mode starts at the configured source point and stops exactly at QTY.
+- Coordinate checks must pass before a point is renamed.
+- Replacement text is padded to preserve the original field width.
+
+MQ numbering rule:
+
+MQ is based on the original source point pair index:
+
+```text
+pairIndex = floor((sourceIndex - 1) / 2)
+mqIndex = startMq + pairIndex - startPairIndex
+```
+
+This is intentional. If a field file contains only the first part of a path and
+then jumps to the end of the path, the final section keeps its real MQ numbers
+instead of being numbered as the next measured rows.
+
+Example with start point `G01.001` and start MQ `1`:
+
+```text
+G01.001 -> MQ01
+G01.016 -> MQ08
+G01.071 -> MQ36
+G01.088 -> MQ44
+```
+
+Validation:
+
+- Run `python tests/run_validation.py` after every functional update.
+- After each functional update, commit and push the updated project to GitHub.

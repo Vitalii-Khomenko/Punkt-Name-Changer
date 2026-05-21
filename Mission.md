@@ -67,6 +67,8 @@ For each detected pattern the user sets:
 
 **Session objects** are created per pattern. Each session tracks:
 - `startOldId` — the first point ID to match, e.g. `G05.001`
+- `startMq` — the configured MQ value for the start point
+- `startPairIndex` — the source pair index of the configured start point
 - `mqIndex` — current MQ counter
 - `renamedCount` / `limit` — progress and cap
 - `active` / `done` — state flags
@@ -107,12 +109,25 @@ Useful for correcting individual points in an already-processed session without 
 | `G`    | Odd         | `03`       |
 | `G`    | Even        | `04`       |
 
-### 2.8 MQ Increment Rules
+### 2.8 MQ Numbering Rules
 
-- After an **even-suffix** point is renamed → pair complete → `mqIndex++`
-- If an **odd-suffix** point follows another odd-suffix point → previous had no even partner → `mqIndex++` **before** naming the new point
+MQ numbering is based on the original source point pair index, not only on the count of rows encountered in the current file.
 
-This makes the tool correct even with point lists that contain only odd or only even indices.
+```
+pairIndex = floor((sourceIndex - 1) / 2)
+mqIndex = startMq + pairIndex - startPairIndex
+```
+
+This makes the tool correct when a file contains a partial measurement, such as the first part of a path and then the final part of the same path.
+
+Example with Start Point `G01.001` and Start MQ `1`:
+
+| Source ID | New MQ |
+|-----------|--------|
+| `G01.001` | `MQ01` |
+| `G01.016` | `MQ08` |
+| `G01.071` | `MQ36` |
+| `G01.088` | `MQ44` |
 
 ### 2.9 State Machine (per session, per file)
 
@@ -164,6 +179,10 @@ This makes the tool correct even with point lists that contain only odd or only 
 ### Layout
 - Vertical card-based layout (mobile-first, 1-column)
 - 2-column grid on screens ≥ 600 px (tablet / desktop)
+- Safe-area padding for modern phone browser viewports
+- Sticky action row inside the configuration card for Rename and Export TXT
+- Numeric mobile keyboard hints for numeric entry fields
+- Auto-scrolling touch log for field feedback
 
 ### Session Card 1 — File Selection
 - File upload input (multi-file)
@@ -203,7 +222,7 @@ This makes the tool correct even with point lists that contain only odd or only 
 - [x] Pattern mode: multi-pattern, multi-file processing
 - [x] Manual `<LfNr>` mode: single-point rename across all session files
 - [x] Coordinate validation (± 0.05 m)
-- [x] MQ orphan-odd detection and correction
+- [x] Source-pair MQ numbering for partial measurements with skipped ranges
 - [x] Hard QTY limit per pattern session
 - [x] Format-preserving replacement for `.imes/.ipkt`, `.iroh`, `.lqp`
 - [x] Header/station protection for `.iroh`
@@ -213,3 +232,4 @@ This makes the tool correct even with point lists that contain only odd or only 
 - [x] Mobile CSS (touch-friendly inputs, fat buttons, 16 px font)
 - [x] Single-file distribution (`index_singlefile_mobile.html`)
 - [x] Multi-file distribution (`index.html` + `css/` + `js/`)
+- [x] Regression validation suite (`tests/run_validation.py`)

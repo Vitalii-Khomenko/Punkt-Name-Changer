@@ -57,14 +57,28 @@ Example: `3560.MQ03.01`
 | `G`    | Odd         | `03`   |
 | `G`    | Even        | `04`   |
 
-### MQ Index Increment Rules
+### MQ Index Numbering Rules
 
-Points naturally come in pairs (odd + even share the same MQ). The counter advances when:
+Points naturally come in pairs: `001/002`, `003/004`, `071/072`, and so on.
+Odd + even points from the same source pair share the same MQ.
 
-- An **even-suffix** point is renamed → pair is complete, MQ increments after.
-- An **odd-suffix** point follows another **odd-suffix** point → the previous point had no even partner; MQ increments before naming the new point.
+MQ is based on the original source point pair index, not only on the count of rows encountered in the file:
 
-This means the tool works correctly even when the input contains **only odd** or **only even** indexed points (e.g. `P05.001, P05.003, P05.005` → `MQ01.01, MQ02.01, MQ03.01`).
+```
+pairIndex = floor((sourceIndex - 1) / 2)
+mqIndex = startMq + pairIndex - startPairIndex
+```
+
+Example with Start Point `G01.001` and Start MQ `1`:
+
+| Source ID | New MQ |
+|-----------|--------|
+| `G01.001` | `MQ01` |
+| `G01.016` | `MQ08` |
+| `G01.071` | `MQ36` |
+| `G01.088` | `MQ44` |
+
+This means partial measurements work correctly when the file contains the first part of a path and then jumps to the end of the path.
 
 ---
 
@@ -167,6 +181,16 @@ The on-screen log shows:
 
 ---
 
+## Mobile Field UX
+
+- The single-file app is the primary smartphone build.
+- Main action buttons stay available near the bottom of the configuration card while scrolling.
+- Numeric fields request numeric mobile keyboards where possible.
+- The log auto-scrolls to the newest message and supports touch momentum scrolling.
+- Safe-area padding is enabled for modern phone browser viewports.
+
+---
+
 ## Project Structure
 
 ```
@@ -178,7 +202,25 @@ js/parsers.js                 — coordinate map building (imes/ipkt/iroh/lqp)
 js/renamer.js                 — renaming engine (pattern mode + manual mode)
 js/main.js                    — UI orchestration, session management, export
 Mission.md                    — detailed product/logic mission document
+tests/run_validation.py       — regression validation suite
+AGENTS.md                     — agent instructions
+rules.txt                     — development and publishing rules
+VALIDATION.md                 — validation notes
+Function.txt                  — behavior notes and source-of-truth guidance
+LICENSE                       — MIT license
 ```
+
+## Testing
+
+Run the regression suite with:
+
+```bash
+python tests/run_validation.py
+```
+
+## License
+
+MIT License
 
 ## Notes
 

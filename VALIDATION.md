@@ -1,0 +1,25 @@
+# Validation Notes
+
+The current test suite is a regression suite for the live browser
+implementation. It mirrors the active renaming rules in Python so the suite can
+run without Node, a browser driver, or network access.
+
+Run validation with:
+
+```bash
+python tests/run_validation.py
+```
+
+## Current Regression Cases
+
+| Case | Expected behavior |
+| --- | --- |
+| Partial `.ipkt` measurement with a source gap | `G01.001` starts at `MQ01`, while `G01.071` maps to `MQ36` when the configured start is `G01.001` / `MQ01`. |
+| Offset start point | If the configured start point is `G01.071` / `MQ01`, then `G01.071` maps to `MQ01` and `G01.078` maps to `MQ04`. |
+| Split and single-file parity | Both implementations contain the source-pair MQ helper and session start-pair metadata. |
+| Project publishing rules | AGENTS.md and rules.txt require validation, commit, and push to GitHub after functional updates. |
+
+## Important Limitation
+
+These tests protect current renaming behavior. They are not a replacement for
+manual review of real Leica exports before production use.
