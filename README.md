@@ -234,6 +234,8 @@ Run the regression suite with:
 python tests/run_validation.py
 ```
 
+The suite also rebuilds `dist/index_singlefile_mobile.generated.html` and checks that the generated file remains self-contained, keeps the mobile safety features, and does not modify `index_singlefile_mobile.html`.
+
 Generate a separate single-file build without touching the smartphone field file:
 
 ```bash

@@ -23,6 +23,7 @@ python tests/run_validation.py
 | Coordinate safety | Regression coverage checks mismatch/guard skip behavior across `.ipkt`, `.iroh`, and `.lqp`. |
 | Busy/export UX | Both implementations keep busy status helpers and visible export summary UI. |
 | Generated build isolation | The generated single-file build script writes only to `dist/` and keeps the smartphone field file untouched. |
+| Generated build content | The validation suite rebuilds `dist/index_singlefile_mobile.generated.html` and checks that it remains self-contained with CSP, file safety, MQ numbering, busy status, and export summary features. |
 | Project publishing rules | AGENTS.md and rules.txt require validation, commit, and push to GitHub after functional updates. |
 
 ## Important Limitation

@@ -8,6 +8,8 @@ rules. The suite protects field-critical behavior and project hygiene.
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -23,6 +25,7 @@ VALIDATION_PATH = ROOT / "VALIDATION.md"
 LICENSE_PATH = ROOT / "LICENSE"
 SECURITY_PATH = ROOT / "SECURITY.md"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
+GENERATED_HTML_PATH = ROOT / "dist" / "index_singlefile_mobile.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
@@ -422,6 +425,51 @@ class ProjectInvariantTests(unittest.TestCase):
         self.assertIn("does not modify", script)
         self.assertIn("index_singlefile_mobile.html", script)
         self.assertIn("dist/", gitignore)
+
+    def test_generated_single_file_build_contains_required_runtime_features(self) -> None:
+        smartphone_html_before = HTML_PATH.read_text(encoding="utf-8")
+
+        subprocess.run(
+            [sys.executable, str(BUILD_SCRIPT_PATH)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        smartphone_html_after = HTML_PATH.read_text(encoding="utf-8")
+        generated = GENERATED_HTML_PATH.read_text(encoding="utf-8")
+
+        self.assertEqual(smartphone_html_before, smartphone_html_after)
+        self.assertTrue(GENERATED_HTML_PATH.exists())
+        self.assertIn("Leica Mobile Renamer V3 (Generated Single File)", generated)
+        self.assertIn('http-equiv="Content-Security-Policy"', generated)
+        self.assertIn("script-src 'self' 'unsafe-inline'", generated)
+        self.assertIn("style-src 'self' 'unsafe-inline'", generated)
+        self.assertIn("connect-src 'none'", generated)
+        self.assertIn("object-src 'none'", generated)
+        self.assertIn("form-action 'none'", generated)
+        self.assertNotIn('href="css/style.css"', generated)
+        self.assertNotRegex(generated, r'<script\s+src="js/')
+
+        for marker in [
+            'id="busyStatus"',
+            'id="exportSummary"',
+            "SUPPORTED_INPUT_EXTENSIONS",
+            "MAX_INPUT_FILE_SIZE_BYTES",
+            "MAX_SESSION_FILE_SIZE_BYTES",
+            "function filterAcceptedInputFiles",
+            "function isSafeNameComponent",
+            "function isSafeOutputSuffix",
+            "getMqIndexForParsedPoint(session, parsed)",
+            "startPairIndex: Math.floor((cfg.startIndex - 1) / 2)",
+            "session.mqIndex = Math.max(session.mqIndex, mqIndex + 1)",
+            "setAppBusy(true, 'Reading selected files...')",
+            "setAppBusy(true, 'Renaming points...')",
+            "position: sticky",
+            ".summary-box",
+        ]:
+            self.assertIn(marker, generated)
 
     def test_project_requires_validation_commit_and_github_push(self) -> None:
         agents = AGENTS_PATH.read_text(encoding="utf-8")
