@@ -193,6 +193,16 @@ The on-screen log shows:
 
 ---
 
+## Privacy And Security
+
+- Files stay local in the browser tab and are not uploaded.
+- The app does not use analytics, cookies, browser storage, or remote API calls.
+- Unsupported files and oversized inputs are skipped before reading.
+- Content Security Policy metadata blocks network connections and object embedding.
+- See `SECURITY.md` for deployment and reporting guidance.
+
+---
+
 ## Project Structure
 
 ```
@@ -209,6 +219,7 @@ AGENTS.md                     — agent instructions
 rules.txt                     — development and publishing rules
 VALIDATION.md                 — validation notes
 Function.txt                  — behavior notes and source-of-truth guidance
+SECURITY.md                   — security and deployment guidance
 LICENSE                       — MIT license
 ```
 

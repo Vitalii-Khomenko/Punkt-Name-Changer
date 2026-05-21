@@ -45,6 +45,8 @@ Any other ID format is ignored entirely.
 5. **Export TXT** downloads all modified files plus a rename log covering all runs in the session.
 6. Selecting new files resets the session.
 
+The app does not upload files, use analytics, store browser data, or make remote API calls.
+
 ### 2.3 Coordinate Map
 
 Built from the selected Master file's `originalContent` on every rename run.
@@ -185,6 +187,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 - Sticky action row inside the configuration card for Rename and Export TXT
 - Numeric mobile keyboard hints for numeric entry fields
 - Auto-scrolling touch log for field feedback
+- Content Security Policy metadata blocks network connections and object embedding
 
 ### Session Card 1 — File Selection
 - File upload input (multi-file)

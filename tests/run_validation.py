@@ -21,6 +21,7 @@ RULES_PATH = ROOT / "rules.txt"
 AGENTS_PATH = ROOT / "AGENTS.md"
 VALIDATION_PATH = ROOT / "VALIDATION.md"
 LICENSE_PATH = ROOT / "LICENSE"
+SECURITY_PATH = ROOT / "SECURITY.md"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
@@ -210,6 +211,7 @@ class ProjectInvariantTests(unittest.TestCase):
             AGENTS_PATH,
             VALIDATION_PATH,
             LICENSE_PATH,
+            SECURITY_PATH,
             RENAMER_PATH,
             MAIN_PATH,
         ]
@@ -234,6 +236,19 @@ class ProjectInvariantTests(unittest.TestCase):
         for source in [main, html]:
             self.assertIn("startMq: cfg.startMq", source)
             self.assertIn("startPairIndex: Math.floor((cfg.startIndex - 1) / 2)", source)
+
+    def test_single_file_build_stays_synchronized_with_split_sources(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        css = (ROOT / "css" / "style.css").read_text(encoding="utf-8").strip()
+        style_match = re.search(r"<style>\n(.*?)\n    </style>", html, re.DOTALL)
+
+        self.assertIsNotNone(style_match)
+        self.assertEqual(css, style_match.group(1).strip())
+
+        for path in [ROOT / "js" / "utils.js", ROOT / "js" / "parsers.js", RENAMER_PATH, MAIN_PATH]:
+            source = path.read_text(encoding="utf-8")
+            for function_name in re.findall(r"^function\s+([A-Za-z0-9_]+)\s*\(", source, re.MULTILINE):
+                self.assertIn(f"function {function_name}(", html, f"{function_name} missing from single-file build")
 
     def test_mobile_ui_keeps_field_work_helpers(self) -> None:
         css = (ROOT / "css" / "style.css").read_text(encoding="utf-8")
@@ -274,6 +289,22 @@ class ProjectInvariantTests(unittest.TestCase):
             self.assertIn("No supported files remained after safety checks.", source)
             self.assertIn("New Base Prefix may contain only letters, numbers, dot, underscore, and hyphen.", source)
             self.assertIn("Output Suffix may contain only letters, numbers, dot, underscore, and hyphen.", source)
+
+    def test_csp_and_privacy_guidance_are_present(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        split_html = (ROOT / "index.html").read_text(encoding="utf-8")
+        readme = README_PATH.read_text(encoding="utf-8")
+        security = SECURITY_PATH.read_text(encoding="utf-8")
+
+        for source in [html, split_html]:
+            self.assertIn('http-equiv="Content-Security-Policy"', source)
+            self.assertIn("connect-src 'none'", source)
+            self.assertIn("object-src 'none'", source)
+            self.assertIn("form-action 'none'", source)
+
+        self.assertIn("Files stay local in the browser tab and are not uploaded.", readme)
+        self.assertIn("The app does not intentionally use:", security)
+        self.assertIn("Content-Security-Policy", security)
 
     def test_project_requires_validation_commit_and_github_push(self) -> None:
         agents = AGENTS_PATH.read_text(encoding="utf-8")

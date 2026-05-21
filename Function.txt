@@ -9,6 +9,7 @@ Source of truth:
 - Single-file mobile app: `index_singlefile_mobile.html`
 - Split implementation: `js/utils.js`, `js/parsers.js`, `js/renamer.js`, `js/main.js`
 - Regression tests: `tests/run_validation.py`
+- Security and deployment guidance: `SECURITY.md`
 
 Core behavior:
 
@@ -22,6 +23,8 @@ Core behavior:
 - Unsupported extensions are skipped before reading.
 - Input files over 10 MB are skipped, and one selected session is capped at 30 MB total.
 - Pattern base prefixes and output suffixes may contain only letters, numbers, dot, underscore, and hyphen.
+- Files stay local in the browser session; no remote API, analytics, cookies, or browser storage are used.
+- Content Security Policy metadata blocks network connections and object embedding.
 
 MQ numbering rule:
 

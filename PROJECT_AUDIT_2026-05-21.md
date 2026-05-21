@@ -12,6 +12,12 @@ The first three audit findings were addressed after this report was created:
 - Pattern `New Base Prefix` now accepts only letters, numbers, dot, underscore, and hyphen.
 - `Output Suffix` now accepts only letters, numbers, dot, underscore, and hyphen.
 
+The next three audit items were also addressed:
+
+- HTML files now include Content Security Policy metadata. The split build uses same-origin scripts/styles, while the single-file field build permits inline code only because it must remain self-contained.
+- README and `SECURITY.md` now document local-only privacy behavior and hosted deployment guidance.
+- The validation suite now checks stronger single-file/split-source synchronization by comparing CSS and verifying split JS function definitions are represented in the single-file build.
+
 ## Executive Summary
 
 PunktNameChanger is a local, browser-only field tool for renaming Leica survey point IDs. The current architecture is appropriate for smartphone field use: files are read locally, processed in memory, and exported back through browser downloads. The app does not send files to a server, does not use cookies or browser storage, and does not load third-party JavaScript.
@@ -20,9 +26,8 @@ Overall security posture: **Good for local/offline field use**.
 
 Main residual risks are operational rather than remote-exploit risks:
 
-- Large or malformed input files can consume mobile memory because files are read fully into memory.
-- Pattern-mode `New Base Prefix` and export suffix validation should be stricter to protect file formatting and output filenames.
-- If the app is ever hosted on a website instead of opened locally, it should receive a Content Security Policy and related hardening headers.
+- Coordinate-mismatch behavior should receive broader regression coverage across every supported format.
+- Long-running file reads and rename runs could benefit from disabled/loading UI states.
 
 No critical remote-code-execution, network exfiltration, credential handling, or obvious DOM-XSS issue was found in the reviewed code.
 
@@ -33,7 +38,7 @@ The regression suite was run successfully:
 ```text
 python tests/run_validation.py
 
-Ran 9 tests
+Ran 12 tests
 OK
 ```
 
@@ -42,7 +47,9 @@ The suite currently protects:
 - Partial `.ipkt` source-gap MQ numbering.
 - Offset start-point MQ behavior.
 - Split/single-file implementation parity for MQ helpers.
+- Single-file CSS and split JS function synchronization checks.
 - Mobile UI helpers.
+- CSP and privacy documentation.
 - Required project files.
 - MIT license presence.
 - Publishing rules requiring validation, commit, and GitHub push.
@@ -63,8 +70,8 @@ The suite currently protects:
 ### Maintainability Notes
 
 - The single-file and split-file versions duplicate logic. This is intentional for field distribution, but every logic change must be applied to both versions.
-- The new validation suite partially protects this parity.
-- Future work could generate the single-file HTML from split sources to reduce drift, but that would add tooling complexity.
+- The validation suite now compares the single-file CSS with `css/style.css` and verifies split JS function definitions are represented in the single-file build.
+- Future work could generate the single-file HTML from split sources to reduce manual update effort, but that would add tooling complexity.
 
 ## Cybersecurity Review
 
@@ -108,46 +115,34 @@ Recommendation:
 
 ### File Input Handling
 
-Risk level: **Medium**
+Risk level: **Resolved**
 
 Observed behavior:
 
 - The file input uses `accept=".imes,.ipkt,.iroh,.lqp,.txt"`.
-- Browser `accept` is advisory; users can still provide unexpected files.
-- Files are read fully into memory before processing.
-- A guard exists for very large newline-free content in `processSingleFileMultiPattern`, but file reading and master analysis happen before this guard.
+- Unsupported extensions are skipped before reading.
+- Files over 10 MB are skipped before reading.
+- The total accepted session is capped at 30 MB.
+- Skipped files are reported in the log.
 
 Assessment:
 
-This is not a remote security vulnerability, but on smartphones a very large or binary-like file can cause slowdowns, high memory use, or browser tab termination.
-
-Recommendations:
-
-1. Add a pre-read file size limit in `handleFileSelect`, for example 5-10 MB per file and a total session limit.
-2. Reject unsupported extensions before reading file contents.
-3. Show a clear log warning when a file is skipped for size or extension.
+The original mobile-memory risk is addressed for normal field use.
 
 ### Output Name and Format Integrity
 
-Risk level: **Medium**
+Risk level: **Resolved**
 
 Observed behavior:
 
 - Manual new point names reject whitespace and `|`.
-- Pattern-mode `New Base Prefix` only checks for non-empty input.
-- Export suffix is not constrained.
+- Pattern-mode `New Base Prefix` accepts only letters, numbers, dot, underscore, and hyphen.
+- Export suffix accepts only letters, numbers, dot, underscore, and hyphen.
 - Output file names are assigned through `a.download`, not written to disk directly.
 
 Assessment:
 
-Browser download handling limits filesystem impact, but weak validation can still create malformed Leica records or confusing exported filenames. In pattern mode, a prefix containing spaces or `|` can break fixed-width pipe output semantics.
-
-Recommendations:
-
-1. Validate `New Base Prefix` with the same strictness as manual names: no whitespace and no `|`.
-2. Consider a positive allowlist such as `^[A-Za-z0-9._-]+$`.
-3. Validate output suffix with a filename-safe allowlist such as `^[A-Za-z0-9._-]*$`.
-4. Add tests for invalid prefix and suffix rejection.
+The original format-integrity risk is addressed.
 
 ### Coordinate Safety
 
@@ -191,25 +186,17 @@ Recommendation:
 
 ### Content Security Policy
 
-Risk level: **Low for local file use, Medium if hosted**
+Risk level: **Resolved for current deployment model**
 
 Observed behavior:
 
-- No CSP is defined in the HTML.
-- The single-file app uses inline CSS and inline JavaScript by design.
+- `index.html` includes CSP metadata that allows same-origin scripts/styles and blocks network connections, object embedding, base URI changes, and form submission.
+- `index_singlefile_mobile.html` includes CSP metadata that allows inline scripts/styles because it must remain self-contained, while still blocking network connections, object embedding, base URI changes, and form submission.
+- `SECURITY.md` documents recommended hosted HTTP headers.
 
 Assessment:
 
-For local `file://` field use, CSP is less important. If the app is hosted on GitHub Pages or another website, CSP becomes more important because the browser origin is reachable through the network.
-
-Recommendations if hosted:
-
-- Add a CSP appropriate for the deployment mode.
-- Prefer a split hosted build with external local scripts and styles to avoid `unsafe-inline`.
-- Add headers equivalent to:
-  - `Content-Security-Policy`
-  - `X-Content-Type-Options: nosniff`
-  - `Referrer-Policy: no-referrer`
+The original hosted-hardening gap is addressed at the HTML metadata and documentation level.
 
 ## Mobile Field UX Review
 
@@ -241,26 +228,29 @@ Strengths:
 Recommendations:
 
 - Keep this audit updated after major logic changes.
-- Add a short security note to `README.md` explaining that files stay local and are not uploaded.
+- Keep `README.md` and `SECURITY.md` aligned with any future deployment changes.
 
 ## Findings
 
-| Severity | Finding | Impact | Recommendation |
-| --- | --- | --- | --- |
-| Medium | Files are read fully into memory before size validation. | Large or binary-like files can freeze or terminate a mobile browser tab. | Add per-file and total session size limits before `FileReader.readAsText`. |
-| Medium | Pattern `New Base Prefix` validation is weaker than manual name validation. | Prefixes containing whitespace or `|` can corrupt Leica fixed-width pipe output. | Reject whitespace and `|`; consider `^[A-Za-z0-9._-]+$`. |
-| Low | Export suffix is not constrained. | Confusing or awkward output filenames are possible. | Allow only filename-safe suffix characters. |
-| Low | No CSP for hosted deployment. | If hosted, injected HTML or future dependencies would have fewer browser-level constraints. | Add deployment-specific CSP and security headers if published as a web page. |
-| Low | Split and single-file logic are duplicated. | Future bug fixes can drift between versions. | Keep parity tests; consider a build script later. |
+No open cybersecurity findings remain from this audit batch.
+
+### Resolved Findings
+
+| Severity | Finding | Resolution |
+| --- | --- | --- |
+| Medium | Files were read fully into memory before size validation. | Added pre-read extension, per-file size, and total-session size checks. |
+| Medium | Pattern `New Base Prefix` validation was weaker than manual name validation. | Added a safe allowlist for pattern base prefixes. |
+| Low | Export suffix was not constrained. | Added a safe allowlist for export suffixes. |
+| Low | No CSP existed for hosted deployment. | Added CSP metadata and `SECURITY.md` deployment guidance. |
+| Low | Split and single-file logic are duplicated. | Added stronger validation checks for CSS and JS function synchronization. |
 
 ## Suggested Next Hardening Tasks
 
-1. Add file size and extension validation before reading files.
-2. Add strict validation for pattern base prefixes and export suffixes.
-3. Add regression tests for invalid prefix/suffix handling.
-4. Add README privacy/security note.
-5. If hosted, add CSP/security-header guidance for that deployment mode.
+1. Add regression tests for coordinate mismatch skips in `.imes/.ipkt`, `.iroh`, and `.lqp`.
+2. Add disabled/loading states during long file reads and rename runs.
+3. Add a visible changed-file summary before export.
+4. Consider a future build script to generate `index_singlefile_mobile.html` from split sources.
 
 ## Audit Conclusion
 
-The application is well suited for its current local smartphone workflow. Its strongest cybersecurity property is that survey files stay local and no network channel is used. The most important next improvement is not remote-attack defense, but mobile resilience and format-safety hardening: reject oversized files early and constrain user-controlled output name components more strictly.
+The application is well suited for its current local smartphone workflow. Its strongest cybersecurity property is that survey files stay local and no network channel is used. The audit findings from the first two remediation passes have been addressed. The next useful work is quality and UX hardening: add broader coordinate-mismatch tests, add loading states, and make export summaries more explicit.

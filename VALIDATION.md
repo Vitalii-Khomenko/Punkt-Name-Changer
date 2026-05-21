@@ -17,7 +17,9 @@ python tests/run_validation.py
 | Partial `.ipkt` measurement with a source gap | `G01.001` starts at `MQ01`, while `G01.071` maps to `MQ36` when the configured start is `G01.001` / `MQ01`. |
 | Offset start point | If the configured start point is `G01.071` / `MQ01`, then `G01.071` maps to `MQ01` and `G01.078` maps to `MQ04`. |
 | Split and single-file parity | Both implementations contain the source-pair MQ helper and session start-pair metadata. |
+| Single-file sync | The single-file CSS matches `css/style.css`, and split JS function definitions are represented in the single-file build. |
 | Security hardening | Both implementations keep pre-read file filtering, size limits, safe prefix validation, and safe suffix validation. |
+| CSP/privacy hardening | HTML files include CSP metadata, and README/SECURITY document local-only privacy guarantees. |
 | Project publishing rules | AGENTS.md and rules.txt require validation, commit, and push to GitHub after functional updates. |
 
 ## Important Limitation
