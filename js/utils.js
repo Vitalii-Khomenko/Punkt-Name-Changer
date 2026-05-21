@@ -43,6 +43,65 @@ function getSuffixCodeFromPointId(parsedPointId) {
     return isOdd ? '03' : '04';
 }
 
+const SUPPORTED_INPUT_EXTENSIONS = new Set(['imes', 'ipkt', 'iroh', 'lqp', 'txt']);
+const MAX_INPUT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_SESSION_FILE_SIZE_BYTES = 30 * 1024 * 1024;
+const SAFE_NAME_COMPONENT_PATTERN = /^[A-Za-z0-9._-]+$/;
+const SAFE_SUFFIX_PATTERN = /^[A-Za-z0-9._-]*$/;
+
+function getFileExtension(fileName) {
+    const parts = String(fileName || '').split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function isSupportedInputExtension(fileName) {
+    return SUPPORTED_INPUT_EXTENSIONS.has(getFileExtension(fileName));
+}
+
+function isSafeNameComponent(value) {
+    return SAFE_NAME_COMPONENT_PATTERN.test(String(value || '').trim());
+}
+
+function isSafeOutputSuffix(value) {
+    return SAFE_SUFFIX_PATTERN.test(String(value || '').trim());
+}
+
+function filterAcceptedInputFiles(files) {
+    const accepted = [];
+    const warnings = [];
+    let totalBytes = 0;
+
+    for (const file of files) {
+        if (!isSupportedInputExtension(file.name)) {
+            warnings.push(`Skipped ${file.name}: unsupported extension.`);
+            continue;
+        }
+
+        if (file.size > MAX_INPUT_FILE_SIZE_BYTES) {
+            warnings.push(`Skipped ${file.name}: ${formatBytes(file.size)} exceeds ${formatBytes(MAX_INPUT_FILE_SIZE_BYTES)} file limit.`);
+            continue;
+        }
+
+        if (totalBytes + file.size > MAX_SESSION_FILE_SIZE_BYTES) {
+            warnings.push(`Skipped ${file.name}: session would exceed ${formatBytes(MAX_SESSION_FILE_SIZE_BYTES)} total limit.`);
+            continue;
+        }
+
+        accepted.push(file);
+        totalBytes += file.size;
+    }
+
+    return { accepted, warnings, totalBytes };
+}
+
 function readFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();

@@ -4,6 +4,14 @@ Date: 2026-05-21
 Scope: `index_singlefile_mobile.html`, split `index.html` + `css/` + `js/`, documentation, validation suite, publishing rules, and local browser security posture.  
 Audit type: Code and cybersecurity review for a client-side Leica point renaming tool.
 
+## Remediation Update
+
+The first three audit findings were addressed after this report was created:
+
+- Pre-read file filtering now skips unsupported extensions, files over 10 MB, and selections that would exceed 30 MB total.
+- Pattern `New Base Prefix` now accepts only letters, numbers, dot, underscore, and hyphen.
+- `Output Suffix` now accepts only letters, numbers, dot, underscore, and hyphen.
+
 ## Executive Summary
 
 PunktNameChanger is a local, browser-only field tool for renaming Leica survey point IDs. The current architecture is appropriate for smartphone field use: files are read locally, processed in memory, and exported back through browser downloads. The app does not send files to a server, does not use cookies or browser storage, and does not load third-party JavaScript.

@@ -19,6 +19,9 @@ Core behavior:
 - Pattern mode starts at the configured source point and stops exactly at QTY.
 - Coordinate checks must pass before a point is renamed.
 - Replacement text is padded to preserve the original field width.
+- Unsupported extensions are skipped before reading.
+- Input files over 10 MB are skipped, and one selected session is capped at 30 MB total.
+- Pattern base prefixes and output suffixes may contain only letters, numbers, dot, underscore, and hyphen.
 
 MQ numbering rule:
 

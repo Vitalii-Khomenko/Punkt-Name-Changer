@@ -166,6 +166,8 @@ Example with Start Point `G01.001` and Start MQ `1`:
 ## 4. Safety Rules
 
 - **Coordinate tolerance:** Y and X must match master within ± 0.05 m. Mismatches → skip with warning.
+- **Pre-read file limits:** unsupported extensions are skipped before reading, each input file is capped at 10 MB, and the total selected session is capped at 30 MB.
+- **Safe name components:** pattern base prefixes and export suffixes allow only letters, numbers, dot, underscore, and hyphen.
 - **Hard QTY limit:** renaming stops exactly when `renamedCount === limit`.
 - **Header protection:** `.iroh` station/header lines are never touched.
 - **LQP guard:** shape check prevents renaming section headers or date lines.

@@ -254,6 +254,27 @@ class ProjectInvariantTests(unittest.TestCase):
         for source in [utils, html]:
             self.assertIn("logDiv.scrollTop = logDiv.scrollHeight", source)
 
+    def test_security_hardening_checks_are_present(self) -> None:
+        utils = (ROOT / "js" / "utils.js").read_text(encoding="utf-8")
+        main = MAIN_PATH.read_text(encoding="utf-8")
+        html = HTML_PATH.read_text(encoding="utf-8")
+
+        for source in [utils, html]:
+            self.assertIn("SUPPORTED_INPUT_EXTENSIONS", source)
+            self.assertIn("MAX_INPUT_FILE_SIZE_BYTES", source)
+            self.assertIn("MAX_SESSION_FILE_SIZE_BYTES", source)
+            self.assertIn("function filterAcceptedInputFiles", source)
+            self.assertIn("function isSafeNameComponent", source)
+            self.assertIn("function isSafeOutputSuffix", source)
+            self.assertIn("/^[A-Za-z0-9._-]+$/", source)
+            self.assertIn("/^[A-Za-z0-9._-]*$/", source)
+
+        for source in [main, html]:
+            self.assertIn("filterAcceptedInputFiles(selectedFiles)", source)
+            self.assertIn("No supported files remained after safety checks.", source)
+            self.assertIn("New Base Prefix may contain only letters, numbers, dot, underscore, and hyphen.", source)
+            self.assertIn("Output Suffix may contain only letters, numbers, dot, underscore, and hyphen.", source)
+
     def test_project_requires_validation_commit_and_github_push(self) -> None:
         agents = AGENTS_PATH.read_text(encoding="utf-8")
         rules = RULES_PATH.read_text(encoding="utf-8")

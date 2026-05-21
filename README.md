@@ -149,8 +149,10 @@ Starting a new file selection resets the session completely.
 
 ## Safety Rules
 
+- **Pre-read file safety**: unsupported extensions are skipped before reading, files over 10 MB are skipped, and one session is capped at 30 MB total.
 - **Coordinate validation**: each candidate rename is checked against the master coordinate (Y, X tolerance ± 0.05 m). Mismatches are skipped with a warning.
 - **Format preservation**: replacement strings are padded to preserve the original field width in every format.
+- **Safe name components**: pattern base prefixes and export suffixes may contain only letters, numbers, dot, underscore, and hyphen.
 - **Header/station exclusion**: in `.iroh`, lines with `CLS:STAT` or `CODE:iGeo` are never renamed.
 - **Hard limit**: renaming stops exactly at the configured QTY; excess points in the file are left unchanged.
 - **LQP guard**: only rows that look like measurement lines (two finite numeric tokens within 0–400 range) are eligible.

@@ -231,6 +231,8 @@ function validatePatternConfigs(patterns, configs, options = {}) {
         }
         if (!cfg.basePrefix) {
             errors.push(`${cfg.patternKey}: New Base Prefix is required.`);
+        } else if (!isSafeNameComponent(cfg.basePrefix)) {
+            errors.push(`${cfg.patternKey}: New Base Prefix may contain only letters, numbers, dot, underscore, and hyphen.`);
         }
         if (!Number.isInteger(cfg.startMq) || cfg.startMq < 1) {
             errors.push(`${cfg.patternKey}: Start MQ must be >= 1.`);
@@ -285,19 +287,24 @@ async function handleFileSelect(event) {
     coordinateMap.clear();
     lastRunMasterName = null;
 
-    uploadedFiles = Array.from(event.target.files);
+    const selectedFiles = Array.from(event.target.files);
+    const acceptedResult = filterAcceptedInputFiles(selectedFiles);
+    for (const warning of acceptedResult.warnings) logWarning(warning);
+
+    uploadedFiles = acceptedResult.accepted;
     uploadedFileEntries = new Array(uploadedFiles.length);
     const select = document.getElementById('masterFileSelect');
     select.innerHTML = '';
 
     if (uploadedFiles.length === 0) {
         select.innerHTML = '<option value="">No files selected</option>';
+        if (selectedFiles.length > 0) logError('No supported files remained after safety checks.');
         return;
     }
 
     let selectedIndex = 0;
     for (let i = 0; i < uploadedFiles.length; i++) {
-        const ext = uploadedFiles[i].name.split('.').pop().toLowerCase();
+        const ext = getFileExtension(uploadedFiles[i].name);
         if (ext === 'ipkt' || ext === 'imes') {
             selectedIndex = i;
             break;
@@ -314,7 +321,7 @@ async function handleFileSelect(event) {
     });
 
     select.selectedIndex = selectedIndex;
-    log(`Loaded ${uploadedFiles.length} files. Default master: ${uploadedFiles[selectedIndex].name}`);
+    log(`Loaded ${uploadedFiles.length} files (${formatBytes(acceptedResult.totalBytes)}). Default master: ${uploadedFiles[selectedIndex].name}`);
 
     log('Reading files into session memory...');
     let loadedCount = 0;
@@ -322,7 +329,7 @@ async function handleFileSelect(event) {
         const file = uploadedFiles[i];
         try {
             const text = await readFile(file);
-            const ext = file.name.split('.').pop().toLowerCase();
+            const ext = getFileExtension(file.name);
             uploadedFileEntries[i] = {
                 file,
                 name: file.name,
@@ -404,7 +411,7 @@ async function processFiles() {
     log(`Indexed ${coordinateMap.size} points from master.`);
     detectedPatterns = detectPatternsFromMaster();
 
-    const masterExt = masterFile.name.split('.').pop().toLowerCase();
+    const masterExt = getFileExtension(masterFile.name);
     if (manualEnabled) {
         if (!(masterExt === 'imes' || masterExt === 'ipkt')) {
             return logError('Manual <LfNr> mode requires Master to be .imes or .ipkt.');
@@ -536,7 +543,10 @@ function exportTxtReport() {
         return logWarning('No session files loaded yet.');
     }
 
-    const suffix = document.getElementById('suffix')?.value || '';
+    const suffix = (document.getElementById('suffix')?.value || '').trim();
+    if (!isSafeOutputSuffix(suffix)) {
+        return logError('Output Suffix may contain only letters, numbers, dot, underscore, and hyphen.');
+    }
     let downloadedFiles = 0;
     for (const entry of uploadedFileEntries) {
         if (entry && entry.modified) {
