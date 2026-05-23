@@ -43,7 +43,7 @@ Project Development and Publishing Guidelines for PunktNameChanger
 
 ## 7. Project Structure
    ```
-   index_singlefile_mobile.html  # All-in-one mobile app
+   Punkt-Name-Changer.html  # All-in-one mobile app
    index.html                    # Split-version HTML shell
    css/style.css                 # Mobile-first styles
    js/utils.js                   # Shared helpers and logging

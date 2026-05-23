@@ -1,7 +1,7 @@
 """Build a generated single-file HTML into dist/.
 
 This script intentionally writes to dist/ only. It does not modify
-index_singlefile_mobile.html, which remains the manually maintained field file
+Punkt-Name-Changer.html, which remains the manually maintained field file
 used on smartphones.
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist"
-OUTPUT_PATH = DIST_DIR / "index_singlefile_mobile.generated.html"
+OUTPUT_PATH = DIST_DIR / "Punkt-Name-Changer.generated.html"
 SCRIPT_ORDER = [
     "js/utils.js",
     "js/parsers.js",

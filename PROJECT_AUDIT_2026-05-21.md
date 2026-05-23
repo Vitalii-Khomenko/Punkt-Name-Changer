@@ -1,7 +1,7 @@
 # PunktNameChanger Project Audit
 
 Date: 2026-05-21  
-Scope: `index_singlefile_mobile.html`, split `index.html` + `css/` + `js/`, documentation, validation suite, publishing rules, and local browser security posture.  
+Scope: `Punkt-Name-Changer.html`, split `index.html` + `css/` + `js/`, documentation, validation suite, publishing rules, and local browser security posture.  
 Audit type: Code and cybersecurity review for a client-side Leica point renaming tool.
 
 ## Remediation Update
@@ -23,7 +23,7 @@ The remaining hardening backlog was then closed:
 - Coordinate-safety regression tests now cover mismatch/guard skip behavior across `.ipkt`, `.iroh`, and `.lqp`.
 - File reads and rename runs now show a busy status and disable main action controls.
 - A visible export summary now reports loaded files, modified files, and TXT log entries before export.
-- `scripts/build_singlefile_dist.py` can generate a separate single-file build into `dist/` without modifying `index_singlefile_mobile.html`.
+- `scripts/build_singlefile_dist.py` can generate a separate single-file build into `dist/` without modifying `Punkt-Name-Changer.html`.
 
 ## Executive Summary
 
@@ -67,7 +67,7 @@ The suite currently protects:
 ### Strengths
 
 - Client-side only: no backend, API token, server endpoint, or remote processing is used.
-- `index_singlefile_mobile.html` remains self-contained for smartphone field use.
+- `Punkt-Name-Changer.html` remains self-contained for smartphone field use.
 - Split implementation keeps maintainable source files in `js/` and `css/`.
 - No package manager runtime dependency is required by the app.
 - No third-party CDN or external script is loaded by the single-file mobile app.
@@ -199,7 +199,7 @@ Risk level: **Resolved for current deployment model**
 Observed behavior:
 
 - `index.html` includes CSP metadata that allows same-origin scripts/styles and blocks network connections, object embedding, base URI changes, and form submission.
-- `index_singlefile_mobile.html` includes CSP metadata that allows inline scripts/styles because it must remain self-contained, while still blocking network connections, object embedding, base URI changes, and form submission.
+- `Punkt-Name-Changer.html` includes CSP metadata that allows inline scripts/styles because it must remain self-contained, while still blocking network connections, object embedding, base URI changes, and form submission.
 - `SECURITY.md` documents recommended hosted HTTP headers.
 
 Assessment:

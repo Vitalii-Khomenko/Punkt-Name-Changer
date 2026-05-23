@@ -8,7 +8,7 @@
 Build a robust mobile web app for batch renaming Leica point IDs in `.imes`, `.ipkt`, `.iroh`, and `.lqp` files. The app is optimized for Samsung A55 and field usage.
 
 **Two distribution formats:**
-- `index_singlefile_mobile.html` — single self-contained file (recommended for mobile field use)
+- `Punkt-Name-Changer.html` — single self-contained file (recommended for mobile field use)
 - `index.html` + `css/` + `js/` — split version (identical logic, easier to maintain)
 
 ### Core goals
@@ -247,7 +247,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 - [x] Log memory cap (400 lines)
 - [x] Mobile CSS (touch-friendly inputs, fat buttons, 16 px font)
 - [x] Busy state and visible export summary for smartphone workflows
-- [x] Single-file distribution (`index_singlefile_mobile.html`)
+- [x] Single-file distribution (`Punkt-Name-Changer.html`)
 - [x] Multi-file distribution (`index.html` + `css/` + `js/`)
 - [x] Regression validation suite (`tests/run_validation.py`)
 - [x] Generated single-file build script writes only to `dist/`

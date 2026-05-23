@@ -19,7 +19,7 @@ Do not add Russian or any other non-English text to project files.
 ## Development Notes
 
 - Keep the app usable as a local browser-based Leica point renamer unless a task explicitly introduces a backend.
-- Keep `index_singlefile_mobile.html` self-contained for mobile field use.
+- Keep `Punkt-Name-Changer.html` self-contained for mobile field use.
 - Keep the split version in `index.html`, `css/`, and `js/` aligned with the single-file version after logic changes.
 - Preserve `.imes`, `.ipkt`, `.iroh`, `.lqp`, and TXT export workflows.
 - Preserve original file formatting and field alignment when renaming point IDs.

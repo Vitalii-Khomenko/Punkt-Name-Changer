@@ -6,7 +6,7 @@ a selected master file.
 
 Source of truth:
 
-- Single-file mobile app: `index_singlefile_mobile.html`
+- Single-file mobile app: `Punkt-Name-Changer.html`
 - Split implementation: `js/utils.js`, `js/parsers.js`, `js/renamer.js`, `js/main.js`
 - Regression tests: `tests/run_validation.py`
 - Security and deployment guidance: `SECURITY.md`
@@ -32,7 +32,7 @@ Core behavior:
 - Content Security Policy metadata blocks network connections and object embedding.
 - Busy status disables main action controls during file reads and rename runs.
 - Export summary reports loaded files, modified files, and TXT log entries.
-- The generated single-file build script writes only to `dist/` and does not modify `index_singlefile_mobile.html`.
+- The generated single-file build script writes only to `dist/` and does not modify `Punkt-Name-Changer.html`.
 
 MQ numbering rule:
 

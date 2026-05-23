@@ -4,7 +4,7 @@ Mobile-friendly web tool for batch renaming Leica survey point IDs in `.imes`, `
 Optimized for field use (tested on Samsung A55). No server or installation required — open directly in any browser.
 
 **Two versions:**
-- `index_singlefile_mobile.html` — all-in-one file, ideal for mobile (copy to phone, open in browser)
+- `Punkt-Name-Changer.html` — all-in-one file, ideal for mobile (copy to phone, open in browser)
 - `index.html` — multi-file version (same functionality, loads `css/` and `js/` separately)
 
 ---
@@ -191,7 +191,7 @@ The on-screen log shows:
 
 ## Quick Start (Mobile)
 
-1. Copy `index_singlefile_mobile.html` to your phone.
+1. Copy `Punkt-Name-Changer.html` to your phone.
 2. Open it in Chrome or Samsung Internet.
 3. Tap **Upload Files** and select all relevant Leica files.
 4. Verify the **Master File** dropdown (prefer `.imes` / `.ipkt`).
@@ -227,7 +227,7 @@ The on-screen log shows:
 ## Project Structure
 
 ```
-index_singlefile_mobile.html  — all-in-one version (use on mobile)
+Punkt-Name-Changer.html  — all-in-one version (use on mobile)
 index.html                    — multi-file version (use on desktop)
 css/style.css                 — mobile-first styles
 js/utils.js                   — global state, helpers, logging
@@ -253,7 +253,7 @@ Run the regression suite with:
 python tests/run_validation.py
 ```
 
-The suite also rebuilds `dist/index_singlefile_mobile.generated.html` and checks that the generated file remains self-contained, keeps the mobile safety features, and does not modify `index_singlefile_mobile.html`.
+The suite also rebuilds `dist/Punkt-Name-Changer.generated.html` and checks that the generated file remains self-contained, keeps the mobile safety features, and does not modify `Punkt-Name-Changer.html`.
 
 Generate a separate single-file build without touching the smartphone field file:
 
@@ -261,7 +261,7 @@ Generate a separate single-file build without touching the smartphone field file
 python scripts/build_singlefile_dist.py
 ```
 
-The generated file is written to `dist/index_singlefile_mobile.generated.html`.
+The generated file is written to `dist/Punkt-Name-Changer.generated.html`.
 
 ## License
 

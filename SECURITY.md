@@ -17,7 +17,7 @@ The app does not intentionally use:
 
 ## Supported Deployment
 
-The primary supported deployment is opening `index_singlefile_mobile.html`
+The primary supported deployment is opening `Punkt-Name-Changer.html`
 directly on a smartphone or laptop.
 
 The split version (`index.html` + `css/` + `js/`) is suitable for maintenance
@@ -31,7 +31,7 @@ Current browser-level policy:
 
 - `index.html` permits only same-origin scripts and styles and blocks network
   connections.
-- `index_singlefile_mobile.html` permits inline script/style because it must
+- `Punkt-Name-Changer.html` permits inline script/style because it must
   remain self-contained for field use, but still blocks network connections,
   object embedding, base URI changes, and form submission.
 

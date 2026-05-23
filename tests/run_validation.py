@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_PATH = ROOT / "index_singlefile_mobile.html"
+HTML_PATH = ROOT / "Punkt-Name-Changer.html"
 README_PATH = ROOT / "README.md"
 MISSION_PATH = ROOT / "Mission.md"
 FUNCTIONS_PATH = ROOT / "Function.txt"
@@ -25,7 +25,7 @@ VALIDATION_PATH = ROOT / "VALIDATION.md"
 LICENSE_PATH = ROOT / "LICENSE"
 SECURITY_PATH = ROOT / "SECURITY.md"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
-GENERATED_HTML_PATH = ROOT / "dist" / "index_singlefile_mobile.generated.html"
+GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
@@ -493,9 +493,9 @@ class ProjectInvariantTests(unittest.TestCase):
         gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
 
         self.assertIn('DIST_DIR = ROOT / "dist"', script)
-        self.assertIn('OUTPUT_PATH = DIST_DIR / "index_singlefile_mobile.generated.html"', script)
+        self.assertIn('OUTPUT_PATH = DIST_DIR / "Punkt-Name-Changer.generated.html"', script)
         self.assertIn("does not modify", script)
-        self.assertIn("index_singlefile_mobile.html", script)
+        self.assertIn("Punkt-Name-Changer.html", script)
         self.assertIn("dist/", gitignore)
 
     def test_generated_single_file_build_contains_required_runtime_features(self) -> None:
