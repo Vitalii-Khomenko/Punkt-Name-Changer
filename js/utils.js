@@ -13,11 +13,12 @@ function pad3(value) {
 // Parses only dot-format IDs used in this project:
 //   G01.001 .. G10.998
 //   P01.001 .. P10.998
+//   Q01.001 .. Q10.998
 // Returns null if not supported.
 function parsePointId(value) {
     if (value === null || value === undefined) return null;
     const normalized = String(value).trim().toUpperCase();
-    const match = normalized.match(/^([GP])(0[1-9]|10)\.(\d{3})$/);
+    const match = normalized.match(/^([GPQ])(0[1-9]|10)\.(\d{3})$/);
     if (!match) return null;
 
     const family = match[1];
@@ -36,11 +37,72 @@ function parsePointId(value) {
 
 function getSuffixCodeFromPointId(parsedPointId) {
     if (!parsedPointId) return null;
+    if (parsedPointId.family === 'Q') {
+        const position = (parsedPointId.index - 1) % 4;
+        return ['03', '04', '01', '02'][position];
+    }
+
     const isOdd = parsedPointId.index % 2 !== 0;
     if (parsedPointId.family === 'P') {
         return isOdd ? '01' : '02';
     }
     return isOdd ? '03' : '04';
+}
+
+function isQuadroPrismPoint(parsedPointId) {
+    return !!parsedPointId && parsedPointId.family === 'Q' && ((parsedPointId.index - 1) % 4) >= 2;
+}
+
+function addDeltaToNumericField(valueText, delta) {
+    const raw = String(valueText);
+    const match = raw.match(/^(\s*)([+-]?\d+(?:\.\d+)?)(\s*)$/);
+    if (!match) return null;
+
+    const numericText = match[2];
+    const decimals = numericText.includes('.') ? Math.max(numericText.split('.')[1].length, 2) : 2;
+    const updated = (parseFloat(numericText) + delta).toFixed(decimals);
+    const targetWidth = Math.max(raw.length - match[3].length, updated.length);
+    return updated.padStart(targetWidth, ' ') + match[3];
+}
+
+function applyQuadroPrismHeightOffset(line, patternType) {
+    if (patternType === 'imes') {
+        const yxzIndex = line.indexOf('|YXZ|');
+        if (yxzIndex === -1) return line;
+
+        const postYxz = line.substring(yxzIndex + 5);
+        const parts = postYxz.split('|');
+        if (parts.length < 3) return line;
+
+        const adjustedHeight = addDeltaToNumericField(parts[2], 0.04);
+        if (adjustedHeight === null) return line;
+
+        parts[2] = adjustedHeight;
+        return line.substring(0, yxzIndex + 5) + parts.join('|');
+    }
+
+    if (patternType === 'iroh') {
+        let changed = false;
+        const updated = line.replace(/(\b(?:H|Z):)([^|]*)/, (full, label, value) => {
+            if (changed) return full;
+            const adjustedHeight = addDeltaToNumericField(value, 0.04);
+            if (adjustedHeight === null) return full;
+            changed = true;
+            return label + adjustedHeight;
+        });
+        return updated;
+    }
+
+    if (patternType === 'lqp') {
+        const match = line.match(/^(\s*\S+\s+\S+\s+\S+\s+)([+-]?\d+(?:\.\d+)?)(.*)$/);
+        if (!match) return line;
+
+        const adjustedHeight = addDeltaToNumericField(match[2], 0.04);
+        if (adjustedHeight === null) return line;
+        return match[1] + adjustedHeight.trim() + match[3];
+    }
+
+    return line;
 }
 
 const SUPPORTED_INPUT_EXTENSIONS = new Set(['imes', 'ipkt', 'iroh', 'lqp', 'txt']);

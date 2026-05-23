@@ -14,10 +14,14 @@ Source of truth:
 
 Core behavior:
 
-- Supported point IDs use dot format only: `G01.001..G10.998` and
-  `P01.001..P10.998`.
+- Supported point IDs use dot format only: `G01.001..G10.998`,
+  `P01.001..P10.998`, and `Q01.001..Q10.998`.
 - `G` odd points receive suffix `03`; `G` even points receive suffix `04`.
 - `P` odd points receive suffix `01`; `P` even points receive suffix `02`.
+- `Q` groups map four source points to one MQ: positions 1/2 use suffixes
+  `03`/`04`, positions 3/4 use suffixes `01`/`02`.
+- Quadro prism positions, the third and fourth point in each `Q` group, add
+  `0.04 m` to the existing height field during rename.
 - Pattern mode starts at the configured source point and stops exactly at QTY.
 - Coordinate checks must pass before a point is renamed.
 - Replacement text is padded to preserve the original field width.

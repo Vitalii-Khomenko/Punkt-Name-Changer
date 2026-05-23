@@ -29,7 +29,7 @@ GENERATED_HTML_PATH = ROOT / "dist" / "index_singlefile_mobile.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
-POINT_ID_RE = re.compile(r"^([GP])(0[1-9]|10)\.(\d{3})$")
+POINT_ID_RE = re.compile(r"^([GPQ])(0[1-9]|10)\.(\d{3})$")
 
 
 def pad2(value: int) -> str:
@@ -59,20 +59,33 @@ def parse_point_id(value: str) -> dict[str, object] | None:
 
 
 def suffix_code(parsed: dict[str, object]) -> str:
+    if parsed["family"] == "Q":
+        return ["03", "04", "01", "02"][(int(parsed["index"]) - 1) % 4]
+
     is_odd = int(parsed["index"]) % 2 != 0
     if parsed["family"] == "P":
         return "01" if is_odd else "02"
     return "03" if is_odd else "04"
 
 
+def is_quadro_prism(parsed: dict[str, object]) -> bool:
+    return parsed["family"] == "Q" and (int(parsed["index"]) - 1) % 4 >= 2
+
+
 def pair_index(source_index: int) -> int:
     return (source_index - 1) // 2
 
 
+def mq_group_index(parsed: dict[str, object]) -> int:
+    if parsed["family"] == "Q":
+        return (int(parsed["index"]) - 1) // 4
+    return pair_index(int(parsed["index"]))
+
+
 def mq_index(session: dict[str, object], parsed: dict[str, object]) -> int:
     start_mq = int(session.get("startMq", session["mqIndex"]))
-    start_pair = int(session.get("startPairIndex", pair_index(int(parsed["index"]))))
-    return start_mq + pair_index(int(parsed["index"])) - start_pair
+    start_pair = int(session.get("startPairIndex", mq_group_index(parsed)))
+    return start_mq + mq_group_index(parsed) - start_pair
 
 
 def make_ipkt_line(lfnr: int, point_id: str) -> str:
@@ -133,6 +146,23 @@ def replace_imes_ipkt_id(line: str, new_name: str) -> str:
     return line[: pipe_index + 1] + (" " * padding) + new_name + line[yxz_index:]
 
 
+def add_delta_to_numeric_field(value_text: str, delta: float) -> str:
+    match = re.match(r"^(\s*)([+-]?\d+(?:\.\d+)?)(\s*)$", value_text)
+    assert match is not None
+    numeric_text = match.group(2)
+    decimals = max(len(numeric_text.split(".")[1]), 2) if "." in numeric_text else 2
+    updated = f"{float(numeric_text) + delta:.{decimals}f}"
+    target_width = max(len(value_text) - len(match.group(3)), len(updated))
+    return updated.rjust(target_width) + match.group(3)
+
+
+def apply_quadro_prism_height_offset_to_ipkt(line: str) -> str:
+    yxz_index = line.find("|YXZ|")
+    parts = line[yxz_index + 5 :].split("|")
+    parts[2] = add_delta_to_numeric_field(parts[2], 0.04)
+    return line[: yxz_index + 5] + "|".join(parts)
+
+
 def process_ipkt_pattern(content: str, session: dict[str, object]) -> tuple[str, int]:
     coordinates = build_coordinate_map(content)
     output: list[str] = []
@@ -148,6 +178,8 @@ def process_ipkt_pattern(content: str, session: dict[str, object]) -> tuple[str,
                     current_mq = mq_index(session, parsed)
                     new_name = f"{session['basePrefix']}.MQ{pad2(current_mq)}.{suffix_code(parsed)}"
                     line = replace_imes_ipkt_id(line, new_name)
+                    if is_quadro_prism(parsed):
+                        line = apply_quadro_prism_height_offset_to_ipkt(line)
                     session["lastSuffixCode"] = suffix_code(parsed)
                     session["mqIndex"] = max(int(session["mqIndex"]), current_mq + 1)
                     session["renamedCount"] = int(session["renamedCount"]) + 1
@@ -229,13 +261,36 @@ def process_single_point_rename(
 
 
 def make_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
+    start_id = f"G01.{pad3(start_index)}"
+    parsed_start = parse_point_id(start_id)
+    assert parsed_start is not None
     return {
         "patternKey": "G01",
         "basePrefix": "3560",
-        "startOldId": f"G01.{pad3(start_index)}",
+        "startOldId": start_id,
         "startIndex": start_index,
         "startMq": start_mq,
-        "startPairIndex": pair_index(start_index),
+        "startPairIndex": mq_group_index(parsed_start),
+        "mqIndex": start_mq,
+        "limit": limit,
+        "renamedCount": 0,
+        "active": False,
+        "done": False,
+        "lastSuffixCode": None,
+    }
+
+
+def make_quadro_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
+    start_id = f"Q01.{pad3(start_index)}"
+    parsed_start = parse_point_id(start_id)
+    assert parsed_start is not None
+    return {
+        "patternKey": "Q01",
+        "basePrefix": "3560",
+        "startOldId": start_id,
+        "startIndex": start_index,
+        "startMq": start_mq,
+        "startPairIndex": mq_group_index(parsed_start),
         "mqIndex": start_mq,
         "limit": limit,
         "renamedCount": 0,
@@ -271,6 +326,21 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn("3560.MQ04.04", output)
         self.assertNotIn("3560.MQ36.03", output)
         self.assertEqual(session["mqIndex"], 5)
+
+    def test_quadro_pattern_maps_four_measurements_to_one_mq_and_offsets_prisms(self) -> None:
+        content = "\n".join(make_ipkt_line(idx, f"Q01.{pad3(idx)}") for idx in range(1, 5))
+        session = make_quadro_session(start_index=1, start_mq=1, limit=4)
+
+        output, count = process_ipkt_pattern(content, session)
+
+        self.assertEqual(count, 4)
+        self.assertIn("3560.MQ01.03", output)
+        self.assertIn("3560.MQ01.04", output)
+        self.assertIn("3560.MQ01.01", output)
+        self.assertIn("3560.MQ01.02", output)
+        self.assertEqual(output.count("83.04000"), 2)
+        self.assertEqual(output.count("83.00000"), 2)
+        self.assertEqual(session["mqIndex"], 2)
 
     def test_coordinate_safety_skips_mismatches_across_supported_formats(self) -> None:
         master = {"G01.001": (2600001.0, 5700001.0)}
@@ -329,12 +399,14 @@ class ProjectInvariantTests(unittest.TestCase):
 
         for source in [renamer, html]:
             self.assertIn("function getPairIndexFromPointIndex", source)
+            self.assertIn("function getMqGroupIndexFromParsedPoint", source)
             self.assertIn("getMqIndexForParsedPoint(session, parsed)", source)
             self.assertIn("session.mqIndex = Math.max(session.mqIndex, mqIndex + 1)", source)
+            self.assertIn("applyQuadroPrismHeightOffset(line, patternType)", source)
 
         for source in [main, html]:
             self.assertIn("startMq: cfg.startMq", source)
-            self.assertIn("startPairIndex: Math.floor((cfg.startIndex - 1) / 2)", source)
+            self.assertIn("startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`))", source)
 
     def test_single_file_build_stays_synchronized_with_split_sources(self) -> None:
         html = HTML_PATH.read_text(encoding="utf-8")
@@ -462,8 +534,9 @@ class ProjectInvariantTests(unittest.TestCase):
             "function isSafeNameComponent",
             "function isSafeOutputSuffix",
             "getMqIndexForParsedPoint(session, parsed)",
-            "startPairIndex: Math.floor((cfg.startIndex - 1) / 2)",
+            "startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`))",
             "session.mqIndex = Math.max(session.mqIndex, mqIndex + 1)",
+            "applyQuadroPrismHeightOffset(line, patternType)",
             "setAppBusy(true, 'Reading selected files...')",
             "setAppBusy(true, 'Renaming points...')",
             "position: sticky",

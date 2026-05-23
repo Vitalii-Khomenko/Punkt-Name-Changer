@@ -178,12 +178,20 @@ function getPairIndexFromPointIndex(index) {
     return Math.floor((index - 1) / 2);
 }
 
+function getMqGroupIndexFromParsedPoint(parsedPointId) {
+    if (parsedPointId && parsedPointId.family === 'Q') {
+        return Math.floor((parsedPointId.index - 1) / 4);
+    }
+    return getPairIndexFromPointIndex(parsedPointId.index);
+}
+
 function getMqIndexForParsedPoint(session, parsedPointId) {
     const startMq = Number.isInteger(session.startMq) ? session.startMq : session.mqIndex;
+    const parsedStartPoint = parsePointId(session.startOldId);
     const startPairIndex = Number.isInteger(session.startPairIndex)
         ? session.startPairIndex
-        : getPairIndexFromPointIndex(parsePointId(session.startOldId)?.index || parsedPointId.index);
-    return startMq + getPairIndexFromPointIndex(parsedPointId.index) - startPairIndex;
+        : getMqGroupIndexFromParsedPoint(parsedStartPoint || parsedPointId);
+    return startMq + getMqGroupIndexFromParsedPoint(parsedPointId) - startPairIndex;
 }
 
 function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
@@ -311,6 +319,10 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
                             }
                             line = prefixSpace + newName + dataPart;
                         }
+                    }
+
+                    if (isQuadroPrismPoint(parsed)) {
+                        line = applyQuadroPrismHeightOffset(line, patternType);
                     }
 
                     localRenameCount++;
@@ -472,6 +484,10 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
                                 }
                                 line = prefixSpace + newName + dataPart;
                             }
+                        }
+
+                        if (isQuadroPrismPoint(parsed)) {
+                            line = applyQuadroPrismHeightOffset(line, patternType);
                         }
 
                         session.renamedCount++;

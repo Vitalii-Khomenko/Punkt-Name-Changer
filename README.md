@@ -30,11 +30,11 @@ Optimized for field use (tested on Samsung A55). No server or installation requi
 
 | Part     | Values         | Example   |
 |----------|----------------|-----------|
-| Family   | `G` or `P`     | `G`, `P`  |
+| Family   | `G`, `P`, or `Q` | `G`, `P`, `Q` |
 | Path     | `01`..`10`     | `05`      |
 | Index    | `001`..`998`   | `023`     |
 
-Examples: `G01.001`, `P05.003`, `G10.998`
+Examples: `G01.001`, `P05.003`, `Q01.004`, `G10.998`
 
 Points outside this format are ignored.
 
@@ -56,11 +56,29 @@ Example: `3560.MQ03.01`
 | `P`    | Even        | `02`   |
 | `G`    | Odd         | `03`   |
 | `G`    | Even        | `04`   |
+| `Q`    | 1st in each group of 4 | `03` |
+| `Q`    | 2nd in each group of 4 | `04` |
+| `Q`    | 3rd in each group of 4 | `01` |
+| `Q`    | 4th in each group of 4 | `02` |
+
+### Quadro Measurement Mode
+
+`Q` patterns are an additional measurement mode for one combined four-point setup.
+Each group of four source points shares one MQ index:
+
+| Source ID | Output suffix | Role |
+|-----------|---------------|------|
+| `Q01.001` | `03` | Rail point 1 |
+| `Q01.002` | `04` | Rail point 2 |
+| `Q01.003` | `01` | Prism point 1 |
+| `Q01.004` | `02` | Prism point 2 |
+
+For Quadro prism points only, the tool adds `0.04 m` to the existing height field while preserving the original numeric formatting as much as possible.
 
 ### MQ Index Numbering Rules
 
-Points naturally come in pairs: `001/002`, `003/004`, `071/072`, and so on.
-Odd + even points from the same source pair share the same MQ.
+`G` and `P` points naturally come in pairs: `001/002`, `003/004`, `071/072`, and so on.
+Odd + even points from the same source pair share the same MQ. `Q` points use groups of four, so `001..004` share one MQ, `005..008` share the next MQ, and so on.
 
 MQ is based on the original source point pair index, not only on the count of rows encountered in the file:
 
@@ -93,7 +111,7 @@ Upload all related files (master + siblings). The tool reads everything into ses
 Choose the file used as the coordinate reference (`.imes` or `.ipkt` preferred).
 The tool automatically:
 - parses all point IDs and their coordinates from the master,
-- detects all present dot-format patterns (e.g. `G05`, `P02`),
+- detects all present dot-format patterns (e.g. `G05`, `P02`, `Q01`),
 - renders a configuration row for each pattern.
 
 ### 3. Configure Patterns (Pattern Mode)
@@ -151,6 +169,7 @@ Starting a new file selection resets the session completely.
 
 - **Pre-read file safety**: unsupported extensions are skipped before reading, files over 10 MB are skipped, and one session is capped at 30 MB total.
 - **Coordinate validation**: each candidate rename is checked against the master coordinate (Y, X tolerance ± 0.05 m). Mismatches are skipped with a warning.
+- **Quadro height adjustment**: `Q` prism positions only receive a `+0.04 m` height offset during rename.
 - **Format preservation**: replacement strings are padded to preserve the original field width in every format.
 - **Safe name components**: pattern base prefixes and export suffixes may contain only letters, numbers, dot, underscore, and hyphen.
 - **Header/station exclusion**: in `.iroh`, lines with `CLS:STAT` or `CODE:iGeo` are never renamed.

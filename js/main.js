@@ -149,7 +149,7 @@ function renderPatternConfig(patterns) {
 
     if (!patterns || patterns.length === 0) {
         const empty = document.createElement('div');
-        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998 or P01.001..P10.998).';
+        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998, P01.001..P10.998, or Q01.001..Q10.998).';
         container.appendChild(empty);
         return;
     }
@@ -414,7 +414,7 @@ async function analyzeCurrentMaster() {
             const total = detectedPatterns.reduce((sum, p) => sum + p.count, 0);
             logSuccess(`Auto-detected: ${detectedPatterns.length} patterns, ${total} points total (dot format).`);
         } else {
-            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998 and/or P01.001..P10.998.');
+            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998, P01.001..P10.998, and/or Q01.001..Q10.998.');
         }
     } catch (e) {
         console.error(e);
@@ -539,7 +539,7 @@ async function processFiles() {
             startOldId: `${cfg.patternKey}.${pad3(cfg.startIndex)}`,
             startIndex: cfg.startIndex,
             startMq: cfg.startMq,
-            startPairIndex: Math.floor((cfg.startIndex - 1) / 2),
+            startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`)),
             mqIndex: cfg.startMq,
             limit: cfg.limit,
             renamedCount: 0,

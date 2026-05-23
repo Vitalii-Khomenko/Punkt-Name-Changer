@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-    <title>Leica Mobile Renamer V3 (Single File)</title>
+    <title>Leica Mobile Renamer V3</title>
     <style>
 :root {
     --primary-color: #3498db;
@@ -296,7 +296,7 @@ button:disabled {
                 <select id="masterFileSelect">
                     <option value="">(Selecting a file first...)</option>
                 </select>
-                <small class="hint">Defines coordinates & total point count.</small>
+                <small class="hint">Defines coordinates &amp; total point count.</small>
             </div>
         </div>
 
@@ -355,15 +355,12 @@ button:disabled {
         </div>
     </div>
 
+    <!-- Scripts: Order is important -->
     <script>
-// ==============================
-// PunktNameChanger (Single-file)
-// ==============================
-
 // --- Global State ---
 window.coordinateMap = new Map();
 
-// --- Helpers (utils.js) ---
+// --- Helpers ---
 function pad2(value) {
     return String(parseInt(value, 10)).padStart(2, '0');
 }
@@ -375,11 +372,12 @@ function pad3(value) {
 // Parses only dot-format IDs used in this project:
 //   G01.001 .. G10.998
 //   P01.001 .. P10.998
+//   Q01.001 .. Q10.998
 // Returns null if not supported.
 function parsePointId(value) {
     if (value === null || value === undefined) return null;
     const normalized = String(value).trim().toUpperCase();
-    const match = normalized.match(/^([GP])(0[1-9]|10)\.(\d{3})$/);
+    const match = normalized.match(/^([GPQ])(0[1-9]|10)\.(\d{3})$/);
     if (!match) return null;
 
     const family = match[1];
@@ -398,11 +396,72 @@ function parsePointId(value) {
 
 function getSuffixCodeFromPointId(parsedPointId) {
     if (!parsedPointId) return null;
+    if (parsedPointId.family === 'Q') {
+        const position = (parsedPointId.index - 1) % 4;
+        return ['03', '04', '01', '02'][position];
+    }
+
     const isOdd = parsedPointId.index % 2 !== 0;
     if (parsedPointId.family === 'P') {
         return isOdd ? '01' : '02';
     }
     return isOdd ? '03' : '04';
+}
+
+function isQuadroPrismPoint(parsedPointId) {
+    return !!parsedPointId && parsedPointId.family === 'Q' && ((parsedPointId.index - 1) % 4) >= 2;
+}
+
+function addDeltaToNumericField(valueText, delta) {
+    const raw = String(valueText);
+    const match = raw.match(/^(\s*)([+-]?\d+(?:\.\d+)?)(\s*)$/);
+    if (!match) return null;
+
+    const numericText = match[2];
+    const decimals = numericText.includes('.') ? Math.max(numericText.split('.')[1].length, 2) : 2;
+    const updated = (parseFloat(numericText) + delta).toFixed(decimals);
+    const targetWidth = Math.max(raw.length - match[3].length, updated.length);
+    return updated.padStart(targetWidth, ' ') + match[3];
+}
+
+function applyQuadroPrismHeightOffset(line, patternType) {
+    if (patternType === 'imes') {
+        const yxzIndex = line.indexOf('|YXZ|');
+        if (yxzIndex === -1) return line;
+
+        const postYxz = line.substring(yxzIndex + 5);
+        const parts = postYxz.split('|');
+        if (parts.length < 3) return line;
+
+        const adjustedHeight = addDeltaToNumericField(parts[2], 0.04);
+        if (adjustedHeight === null) return line;
+
+        parts[2] = adjustedHeight;
+        return line.substring(0, yxzIndex + 5) + parts.join('|');
+    }
+
+    if (patternType === 'iroh') {
+        let changed = false;
+        const updated = line.replace(/(\b(?:H|Z):)([^|]*)/, (full, label, value) => {
+            if (changed) return full;
+            const adjustedHeight = addDeltaToNumericField(value, 0.04);
+            if (adjustedHeight === null) return full;
+            changed = true;
+            return label + adjustedHeight;
+        });
+        return updated;
+    }
+
+    if (patternType === 'lqp') {
+        const match = line.match(/^(\s*\S+\s+\S+\s+\S+\s+)([+-]?\d+(?:\.\d+)?)(.*)$/);
+        if (!match) return line;
+
+        const adjustedHeight = addDeltaToNumericField(match[2], 0.04);
+        if (adjustedHeight === null) return line;
+        return match[1] + adjustedHeight.trim() + match[3];
+    }
+
+    return line;
 }
 
 const SUPPORTED_INPUT_EXTENSIONS = new Set(['imes', 'ipkt', 'iroh', 'lqp', 'txt']);
@@ -532,8 +591,10 @@ function logSuccess(msg) { appendLog(msg, 'success'); }
 function logWarning(msg) { appendLog(msg, 'warning'); }
 function logError(msg) { appendLog(msg, 'error'); }
 function clearLog() { document.getElementById('log').textContent = ''; }
+    </script>
+    <script>
+// --- Parsing Logic ---
 
-// --- Parsing Logic (parsers.js) ---
 function buildCoordinateMap(text, filename) {
     coordinateMap.clear();
     const isLqp = filename.toLowerCase().endsWith('.lqp');
@@ -624,8 +685,10 @@ function parseLqpBlock(buffer) {
         console.warn('Skipped LQP block due to parse error', buffer);
     }
 }
+    </script>
+    <script>
+// --- Renaming Logic ---
 
-// --- Renaming Logic (renamer.js) ---
 function processSingleFileSinglePointRename(content, ext, oldId, newName, options = {}) {
     if (typeof content !== 'string') {
         throw new Error('Invalid file content.');
@@ -804,12 +867,20 @@ function getPairIndexFromPointIndex(index) {
     return Math.floor((index - 1) / 2);
 }
 
+function getMqGroupIndexFromParsedPoint(parsedPointId) {
+    if (parsedPointId && parsedPointId.family === 'Q') {
+        return Math.floor((parsedPointId.index - 1) / 4);
+    }
+    return getPairIndexFromPointIndex(parsedPointId.index);
+}
+
 function getMqIndexForParsedPoint(session, parsedPointId) {
     const startMq = Number.isInteger(session.startMq) ? session.startMq : session.mqIndex;
+    const parsedStartPoint = parsePointId(session.startOldId);
     const startPairIndex = Number.isInteger(session.startPairIndex)
         ? session.startPairIndex
-        : getPairIndexFromPointIndex(parsePointId(session.startOldId)?.index || parsedPointId.index);
-    return startMq + getPairIndexFromPointIndex(parsedPointId.index) - startPairIndex;
+        : getMqGroupIndexFromParsedPoint(parsedStartPoint || parsedPointId);
+    return startMq + getMqGroupIndexFromParsedPoint(parsedPointId) - startPairIndex;
 }
 
 function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
@@ -937,6 +1008,10 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
                             }
                             line = prefixSpace + newName + dataPart;
                         }
+                    }
+
+                    if (isQuadroPrismPoint(parsed)) {
+                        line = applyQuadroPrismHeightOffset(line, patternType);
                     }
 
                     localRenameCount++;
@@ -1100,6 +1175,10 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
                             }
                         }
 
+                        if (isQuadroPrismPoint(parsed)) {
+                            line = applyQuadroPrismHeightOffset(line, patternType);
+                        }
+
                         session.renamedCount++;
                         localRenameCount++;
 
@@ -1125,8 +1204,9 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
         content: newLines.join('\n')
     };
 }
-
-// --- App Logic (main.js) ---
+    </script>
+    <script>
+// --- App Logic ---
 let uploadedFiles = [];
 let uploadedFileEntries = [];
 let detectedPatterns = [];
@@ -1277,7 +1357,7 @@ function renderPatternConfig(patterns) {
 
     if (!patterns || patterns.length === 0) {
         const empty = document.createElement('div');
-        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998 or P01.001..P10.998).';
+        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998, P01.001..P10.998, or Q01.001..Q10.998).';
         container.appendChild(empty);
         return;
     }
@@ -1542,7 +1622,7 @@ async function analyzeCurrentMaster() {
             const total = detectedPatterns.reduce((sum, p) => sum + p.count, 0);
             logSuccess(`Auto-detected: ${detectedPatterns.length} patterns, ${total} points total (dot format).`);
         } else {
-            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998 and/or P01.001..P10.998.');
+            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998, P01.001..P10.998, and/or Q01.001..Q10.998.');
         }
     } catch (e) {
         console.error(e);
@@ -1667,7 +1747,7 @@ async function processFiles() {
             startOldId: `${cfg.patternKey}.${pad3(cfg.startIndex)}`,
             startIndex: cfg.startIndex,
             startMq: cfg.startMq,
-            startPairIndex: Math.floor((cfg.startIndex - 1) / 2),
+            startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`)),
             mqIndex: cfg.startMq,
             limit: cfg.limit,
             renamedCount: 0,
@@ -1753,7 +1833,6 @@ function exportTxtReport() {
     updateExportSummary();
     logSuccess(`Export complete. Files: ${downloadedFiles}, TXT: ${exportedTxt ? 'yes' : 'no'}.`);
 }
-
     </script>
 </body>
 </html>
