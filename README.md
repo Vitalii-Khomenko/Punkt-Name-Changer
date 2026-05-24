@@ -31,7 +31,7 @@ Optimized for field use (tested on Samsung A55). No server or installation requi
 | Part     | Values         | Example   |
 |----------|----------------|-----------|
 | Family   | `G`, `P`, or `Q` | `G`, `P`, `Q` |
-| Path     | `01`..`10`     | `05`      |
+| Path     | `01`..`10` for `G`/`P`, `01`..`99` for `Q` | `05` |
 | Index    | `001`..`998`   | `023`     |
 
 Examples: `G01.001`, `P05.003`, `Q01.004`, `G10.998`
@@ -73,18 +73,19 @@ Each group of four source points shares one MQ index:
 | `Q01.003` | `01` | Prism point 1 |
 | `Q01.004` | `02` | Prism point 2 |
 
-For Quadro prism points only, the tool adds `0.04 m` to the existing height field while preserving the original numeric formatting as much as possible.
+For Quadro prism points only, the tool subtracts `0.04 m` from the existing height field while preserving the original numeric formatting as much as possible.
 
 ### MQ Index Numbering Rules
 
 `G` and `P` points naturally come in pairs: `001/002`, `003/004`, `071/072`, and so on.
 Odd + even points from the same source pair share the same MQ. `Q` points use groups of four, so `001..004` share one MQ, `005..008` share the next MQ, and so on.
 
-MQ is based on the original source point pair index, not only on the count of rows encountered in the file:
+MQ is based on the original source point pair index for `G`/`P` and on the original source group-of-four index for `Q`, not only on the count of rows encountered in the file:
 
 ```
-pairIndex = floor((sourceIndex - 1) / 2)
-mqIndex = startMq + pairIndex - startPairIndex
+G/P groupIndex = floor((sourceIndex - 1) / 2)
+Q groupIndex   = floor((sourceIndex - 1) / 4)
+mqIndex = startMq + groupIndex - startGroupIndex
 ```
 
 Example with Start Point `G01.001` and Start MQ `1`:
@@ -97,6 +98,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 | `G01.088` | `MQ44` |
 
 This means partial measurements work correctly when the file contains the first part of a path and then jumps to the end of the path.
+For Quadro patterns, the default Start MQ comes from the pattern number, so detected patterns like `Q01`, `Q02`, `Q10`, and `Q12` naturally start at `MQ01`, `MQ02`, `MQ10`, and `MQ12`.
 
 ---
 
@@ -169,7 +171,7 @@ Starting a new file selection resets the session completely.
 
 - **Pre-read file safety**: unsupported extensions are skipped before reading, files over 10 MB are skipped, and one session is capped at 30 MB total.
 - **Coordinate validation**: each candidate rename is checked against the master coordinate (Y, X tolerance ± 0.05 m). Mismatches are skipped with a warning.
-- **Quadro height adjustment**: `Q` prism positions only receive a `+0.04 m` height offset during rename.
+- **Quadro height adjustment**: `Q` prism positions only receive a `-0.04 m` height offset during rename.
 - **Format preservation**: replacement strings are padded to preserve the original field width in every format.
 - **Safe name components**: pattern base prefixes and export suffixes may contain only letters, numbers, dot, underscore, and hyphen.
 - **Header/station exclusion**: in `.iroh`, lines with `CLS:STAT` or `CODE:iGeo` are never renamed.

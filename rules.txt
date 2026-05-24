@@ -14,9 +14,10 @@ Project Development and Publishing Guidelines for PunktNameChanger
    - Keep all user-facing text in English.
 
 ## 3. Renaming Rules
-   - Support dot-format point IDs only: G01.001..G10.998, P01.001..P10.998, and Q01.001..Q10.998.
+   - Support dot-format point IDs only: G01.001..G10.998, P01.001..P10.998, and Q01.001..Q99.998.
    - Keep Quadro Q groups mapped as four measurements per MQ: suffixes 03, 04, 01, 02 in source order.
-   - Add the 0.04 m height offset only to Quadro prism positions.
+   - Subtract the 0.04 m height offset only from Quadro prism positions.
+   - Default Quadro Start MQ from the pattern number so skipped sections such as Q10 and Q12 keep their real MQ positions.
    - Preserve source file formatting and fixed-width alignment.
    - Validate coordinates against the selected master before renaming.
    - Respect the hard QTY limit for every pattern run.

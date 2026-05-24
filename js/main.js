@@ -149,7 +149,7 @@ function renderPatternConfig(patterns) {
 
     if (!patterns || patterns.length === 0) {
         const empty = document.createElement('div');
-        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998, P01.001..P10.998, or Q01.001..Q10.998).';
+        empty.textContent = 'No supported patterns found in master (expected G01.001..G10.998, P01.001..P10.998, or Q01.001..Q99.998).';
         container.appendChild(empty);
         return;
     }
@@ -188,7 +188,7 @@ function renderPatternConfig(patterns) {
         mqLabel.textContent = 'Start MQ Index';
         const mqInput = document.createElement('input');
         mqInput.type = 'number';
-        mqInput.value = '1';
+        mqInput.value = pattern.family === 'Q' ? String(parseInt(pattern.path, 10)) : '1';
         mqInput.min = '1';
         mqInput.dataset.role = 'startMq';
         mqInput.inputMode = 'numeric';
@@ -414,7 +414,7 @@ async function analyzeCurrentMaster() {
             const total = detectedPatterns.reduce((sum, p) => sum + p.count, 0);
             logSuccess(`Auto-detected: ${detectedPatterns.length} patterns, ${total} points total (dot format).`);
         } else {
-            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998, P01.001..P10.998, and/or Q01.001..Q10.998.');
+            logWarning('No dot-format patterns detected in master. Expected G01.001..G10.998, P01.001..P10.998, and/or Q01.001..Q99.998.');
         }
     } catch (e) {
         console.error(e);

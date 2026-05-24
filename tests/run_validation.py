@@ -29,7 +29,7 @@ GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
-POINT_ID_RE = re.compile(r"^([GPQ])(0[1-9]|10)\.(\d{3})$")
+POINT_ID_RE = re.compile(r"^([GPQ])(\d{2})\.(\d{3})$")
 
 
 def pad2(value: int) -> str:
@@ -49,6 +49,13 @@ def parse_point_id(value: str) -> dict[str, object] | None:
         return None
     family = match.group(1)
     path = match.group(2)
+    path_number = int(path)
+    if family == "Q":
+        if path_number < 1 or path_number > 99:
+            return None
+    elif path_number < 1 or path_number > 10:
+        return None
+
     return {
         "normalized": f"{family}{path}.{pad3(index)}",
         "family": family,
@@ -159,7 +166,7 @@ def add_delta_to_numeric_field(value_text: str, delta: float) -> str:
 def apply_quadro_prism_height_offset_to_ipkt(line: str) -> str:
     yxz_index = line.find("|YXZ|")
     parts = line[yxz_index + 5 :].split("|")
-    parts[2] = add_delta_to_numeric_field(parts[2], 0.04)
+    parts[2] = add_delta_to_numeric_field(parts[2], -0.04)
     return line[: yxz_index + 5] + "|".join(parts)
 
 
@@ -338,9 +345,29 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn("3560.MQ01.04", output)
         self.assertIn("3560.MQ01.01", output)
         self.assertIn("3560.MQ01.02", output)
-        self.assertEqual(output.count("83.04000"), 2)
+        self.assertEqual(output.count("82.96000"), 2)
         self.assertEqual(output.count("83.00000"), 2)
         self.assertEqual(session["mqIndex"], 2)
+
+    def test_quadro_pattern_number_can_represent_skipped_sections(self) -> None:
+        self.assertIsNotNone(parse_point_id("Q12.001"))
+        self.assertIsNone(parse_point_id("G12.001"))
+
+        content = "\n".join(make_ipkt_line(idx, f"Q12.{pad3(idx)}") for idx in range(1, 5))
+        session = {
+            **make_quadro_session(start_index=1, start_mq=12, limit=4),
+            "patternKey": "Q12",
+            "startOldId": "Q12.001",
+        }
+
+        output, count = process_ipkt_pattern(content, session)
+
+        self.assertEqual(count, 4)
+        self.assertIn("3560.MQ12.03", output)
+        self.assertIn("3560.MQ12.04", output)
+        self.assertIn("3560.MQ12.01", output)
+        self.assertIn("3560.MQ12.02", output)
+        self.assertEqual(session["mqIndex"], 13)
 
     def test_coordinate_safety_skips_mismatches_across_supported_formats(self) -> None:
         master = {"G01.001": (2600001.0, 5700001.0)}
@@ -407,6 +434,7 @@ class ProjectInvariantTests(unittest.TestCase):
         for source in [main, html]:
             self.assertIn("startMq: cfg.startMq", source)
             self.assertIn("startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`))", source)
+            self.assertIn("mqInput.value = pattern.family === 'Q' ? String(parseInt(pattern.path, 10)) : '1'", source)
 
     def test_single_file_build_stays_synchronized_with_split_sources(self) -> None:
         html = HTML_PATH.read_text(encoding="utf-8")
@@ -535,6 +563,7 @@ class ProjectInvariantTests(unittest.TestCase):
             "function isSafeOutputSuffix",
             "getMqIndexForParsedPoint(session, parsed)",
             "startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`))",
+            "mqInput.value = pattern.family === 'Q' ? String(parseInt(pattern.path, 10)) : '1'",
             "session.mqIndex = Math.max(session.mqIndex, mqIndex + 1)",
             "applyQuadroPrismHeightOffset(line, patternType)",
             "setAppBusy(true, 'Reading selected files...')",
