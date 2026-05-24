@@ -31,7 +31,7 @@ Optimized for field use (tested on Samsung A55). No server or installation requi
 | Part     | Values         | Example   |
 |----------|----------------|-----------|
 | Family   | `G`, `P`, or `Q` | `G`, `P`, `Q` |
-| Path     | `01`..`10` for `G`/`P`, `01`..`99` for `Q` | `05` |
+| Path     | `01`..`10`     | `05`      |
 | Index    | `001`..`998`   | `023`     |
 
 Examples: `G01.001`, `P05.003`, `Q01.004`, `G10.998`
@@ -98,7 +98,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 | `G01.088` | `MQ44` |
 
 This means partial measurements work correctly when the file contains the first part of a path and then jumps to the end of the path.
-For Quadro patterns, the default Start MQ comes from the pattern number, so detected patterns like `Q01`, `Q02`, `Q10`, and `Q12` naturally start at `MQ01`, `MQ02`, `MQ10`, and `MQ12`.
+For Quadro patterns, skipped sections are represented by the source index inside the same path. For example, with Start Point `Q01.001` and Start MQ `1`, `Q01.001..Q01.004` maps to `MQ01`, `Q01.005..Q01.008` maps to `MQ02`, `Q01.037..Q01.040` maps to `MQ10`, and `Q01.045..Q01.048` maps to `MQ12`.
 
 ---
 

@@ -13,24 +13,18 @@ function pad3(value) {
 // Parses only dot-format IDs used in this project:
 //   G01.001 .. G10.998
 //   P01.001 .. P10.998
-//   Q01.001 .. Q99.998
+//   Q01.001 .. Q10.998
 // Returns null if not supported.
 function parsePointId(value) {
     if (value === null || value === undefined) return null;
     const normalized = String(value).trim().toUpperCase();
-    const match = normalized.match(/^([GPQ])(\d{2})\.(\d{3})$/);
+    const match = normalized.match(/^([GPQ])(0[1-9]|10)\.(\d{3})$/);
     if (!match) return null;
 
     const family = match[1];
     const path = match[2];
     const index = parseInt(match[3], 10);
     if (!Number.isInteger(index) || index < 1 || index > 998) return null;
-    const pathNumber = parseInt(path, 10);
-    if (family === 'Q') {
-        if (!Number.isInteger(pathNumber) || pathNumber < 1 || pathNumber > 99) return null;
-    } else if (!Number.isInteger(pathNumber) || pathNumber < 1 || pathNumber > 10) {
-        return null;
-    }
 
     return {
         normalized: `${family}${path}.${pad3(index)}`,

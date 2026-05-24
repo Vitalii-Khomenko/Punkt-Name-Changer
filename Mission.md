@@ -1,7 +1,7 @@
 # Mission: Universal Leica Point Renamer (Mobile V3 — Session-Based)
 
 > **Status:** Active / Optimized for Samsung A55
-> **Latest Update:** Session-based multi-run architecture, per-pattern UI configuration, dot-format IDs (G01.001..G10.998 / P01.001..P10.998 / Q01.001..Q99.998), manual single-point rename by `<LfNr>`, TXT export with rename log.
+> **Latest Update:** Session-based multi-run architecture, per-pattern UI configuration, dot-format IDs (G01.001..G10.998 / P01.001..P10.998 / Q01.001..Q10.998), manual single-point rename by `<LfNr>`, TXT export with rename log.
 
 ## 1. Project Overview
 
@@ -28,7 +28,7 @@ Build a robust mobile web app for batch renaming Leica point IDs in `.imes`, `.i
 ```
 [Family][Path].[Index]
   Family : G, P, or Q
-  Path   : 01..10 for G/P, 01..99 for Q
+  Path   : 01..10
   Index  : 001..998
 ```
 
@@ -65,7 +65,7 @@ For each detected pattern the user sets:
 - **New Base Prefix** — e.g. `3560`
 - **Start Point (###)** — index of the first point, e.g. `1`
 - **QTY to Rename** — number of consecutive points to process
-- **Start MQ Index** — starting MQ counter, e.g. `1`; Quadro patterns default to their pattern number, such as `Q12` -> `12`
+- **Start MQ Index** — starting MQ counter, e.g. `1`
 
 **Session objects** are created per pattern. Each session tracks:
 - `startOldId` — the first point ID to match, e.g. `G05.001`
@@ -127,7 +127,7 @@ Q groupIndex   = floor((sourceIndex - 1) / 4)
 mqIndex = startMq + groupIndex - startGroupIndex
 ```
 
-This makes the tool correct when a file contains a partial measurement, such as the first part of a path and then the final part of the same path. For Quadro, pattern numbering can represent skipped sections directly: `Q01`, `Q02`, `Q10`, and `Q12` default to `MQ01`, `MQ02`, `MQ10`, and `MQ12`.
+This makes the tool correct when a file contains a partial measurement, such as the first part of a path and then the final part of the same path. For Quadro, skipped sections are represented by source indexes inside the same path: `Q01.001..Q01.004` maps to `MQ01`, `Q01.005..Q01.008` maps to `MQ02`, `Q01.037..Q01.040` maps to `MQ10`, and `Q01.045..Q01.048` maps to `MQ12`.
 
 Example with Start Point `G01.001` and Start MQ `1`:
 
@@ -231,7 +231,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 
 ## 7. Implementation Status
 
-- [x] Dot-format ID parsing: `G01.001..G10.998`, `P01.001..P10.998`, `Q01.001..Q99.998`
+- [x] Dot-format ID parsing: `G01.001..G10.998`, `P01.001..P10.998`, `Q01.001..Q10.998`
 - [x] Quadro mode: four source points per MQ with prism-only `-0.04 m` height offset
 - [x] Per-pattern dynamic UI configuration
 - [x] Session-based multi-run architecture (files in memory)
