@@ -14,11 +14,12 @@ function pad3(value) {
 //   G01.001 .. G10.998
 //   P01.001 .. P10.998
 //   Q01.001 .. Q10.998
+//   QL01.001 .. QL10.998
 // Returns null if not supported.
 function parsePointId(value) {
     if (value === null || value === undefined) return null;
     const normalized = String(value).trim().toUpperCase();
-    const match = normalized.match(/^([GPQ])(0[1-9]|10)\.(\d{3})$/);
+    const match = normalized.match(/^(QL|[GPQ])(0[1-9]|10)\.(\d{3})$/);
     if (!match) return null;
 
     const family = match[1];
@@ -41,6 +42,10 @@ function getSuffixCodeFromPointId(parsedPointId) {
         const position = (parsedPointId.index - 1) % 4;
         return ['03', '04', '01', '02'][position];
     }
+    if (parsedPointId.family === 'QL') {
+        const position = (parsedPointId.index - 1) % 4;
+        return ['01', '03', '04', '02'][position];
+    }
 
     const isOdd = parsedPointId.index % 2 !== 0;
     if (parsedPointId.family === 'P') {
@@ -50,7 +55,11 @@ function getSuffixCodeFromPointId(parsedPointId) {
 }
 
 function isQuadroPrismPoint(parsedPointId) {
-    return !!parsedPointId && parsedPointId.family === 'Q' && ((parsedPointId.index - 1) % 4) >= 2;
+    if (!parsedPointId) return false;
+    const position = (parsedPointId.index - 1) % 4;
+    if (parsedPointId.family === 'Q') return position >= 2;
+    if (parsedPointId.family === 'QL') return position === 0 || position === 3;
+    return false;
 }
 
 function addDeltaToNumericField(valueText, delta) {

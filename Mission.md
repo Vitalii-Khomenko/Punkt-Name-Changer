@@ -1,7 +1,7 @@
 # Mission: Universal Leica Point Renamer (Mobile V3 — Session-Based)
 
 > **Status:** Active / Optimized for Samsung A55
-> **Latest Update:** Session-based multi-run architecture, per-pattern UI configuration, dot-format IDs (G01.001..G10.998 / P01.001..P10.998 / Q01.001..Q10.998), manual single-point rename by `<LfNr>`, TXT export with rename log.
+> **Latest Update:** Session-based multi-run architecture, per-pattern UI configuration, dot-format IDs (G01.001..G10.998 / P01.001..P10.998 / Q01.001..Q10.998 / QL01.001..QL10.998), manual single-point rename by `<LfNr>`, TXT export with rename log.
 
 ## 1. Project Overview
 
@@ -27,12 +27,12 @@ Build a robust mobile web app for batch renaming Leica point IDs in `.imes`, `.i
 
 ```
 [Family][Path].[Index]
-  Family : G, P, or Q
+  Family : G, P, Q, or QL
   Path   : 01..10
   Index  : 001..998
 ```
 
-Examples: `G01.001`, `P05.003`, `Q01.004`, `G10.998`
+Examples: `G01.001`, `P05.003`, `Q01.004`, `QL01.004`, `G10.998`
 
 Any other ID format is ignored entirely.
 
@@ -54,7 +54,7 @@ Stores `{ y, x }` per point ID string.
 
 ### 2.4 Pattern Detection
 
-After building the coordinate map, `detectPatternsFromMaster()` iterates all keys and groups them by `patternKey` (e.g. `G05`, `P02`, `Q01`).
+After building the coordinate map, `detectPatternsFromMaster()` iterates all keys and groups them by `patternKey` (e.g. `G05`, `P02`, `Q01`, `QL01`).
 Each group reports: count, min index, max index, ordered list of IDs.
 
 The UI renders one configuration block per detected pattern.
@@ -114,20 +114,24 @@ Useful for correcting individual points in an already-processed session without 
 | `Q`    | 2nd in group of 4 | `04` |
 | `Q`    | 3rd in group of 4 | `01` |
 | `Q`    | 4th in group of 4 | `02` |
+| `QL`   | 1st in group of 4 | `01` |
+| `QL`   | 2nd in group of 4 | `03` |
+| `QL`   | 3rd in group of 4 | `04` |
+| `QL`   | 4th in group of 4 | `02` |
 
-Quadro mode uses four source points per MQ. `Q01.001` and `Q01.002` are rail-point positions; `Q01.003` and `Q01.004` are prism positions. Only the Quadro prism positions receive a `-0.04 m` height offset during rename.
+Quadro mode uses four source points per MQ. `Q` records rail, rail, prism, prism. `QL` records prism, rail, rail, prism. Only the Quadro prism positions receive a `-0.04 m` height offset during rename.
 
 ### 2.8 MQ Numbering Rules
 
-MQ numbering is based on the original source point pair index for `G` and `P`, and on the original source group-of-four index for `Q`, not only on the count of rows encountered in the current file.
+MQ numbering is based on the original source point pair index for `G` and `P`, and on the original source group-of-four index for `Q` and `QL`, not only on the count of rows encountered in the current file.
 
 ```
-G/P groupIndex = floor((sourceIndex - 1) / 2)
-Q groupIndex   = floor((sourceIndex - 1) / 4)
+G/P groupIndex  = floor((sourceIndex - 1) / 2)
+Q/QL groupIndex = floor((sourceIndex - 1) / 4)
 mqIndex = startMq + groupIndex - startGroupIndex
 ```
 
-This makes the tool correct when a file contains a partial measurement, such as the first part of a path and then the final part of the same path. For Quadro, skipped sections are represented by source indexes inside the same path: `Q01.001..Q01.004` maps to `MQ01`, `Q01.005..Q01.008` maps to `MQ02`, `Q01.037..Q01.040` maps to `MQ10`, and `Q01.045..Q01.048` maps to `MQ12`.
+This makes the tool correct when a file contains a partial measurement, such as the first part of a path and then the final part of the same path. For Quadro, skipped sections are represented by source indexes inside the same path: indexes `001..004` map to `MQ01`, `005..008` map to `MQ02`, `037..040` map to `MQ10`, and `045..048` map to `MQ12`.
 
 Example with Start Point `G01.001` and Start MQ `1`:
 
@@ -178,7 +182,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 - **Pre-read file limits:** unsupported extensions are skipped before reading, each input file is capped at 10 MB, and the total selected session is capped at 30 MB.
 - **Safe name components:** pattern base prefixes and export suffixes allow only letters, numbers, dot, underscore, and hyphen.
 - **Hard QTY limit:** renaming stops exactly when `renamedCount === limit`.
-- **Quadro height offset:** only Quadro prism positions receive a `-0.04 m` height adjustment.
+- **Quadro height offset:** only Quadro prism positions in `Q` and `QL` receive a `-0.04 m` height adjustment.
 - **Header protection:** `.iroh` station/header lines are never touched.
 - **LQP guard:** shape check prevents renaming section headers or date lines.
 - **Log limit:** capped at 400 lines to protect mobile memory.
@@ -231,8 +235,8 @@ Example with Start Point `G01.001` and Start MQ `1`:
 
 ## 7. Implementation Status
 
-- [x] Dot-format ID parsing: `G01.001..G10.998`, `P01.001..P10.998`, `Q01.001..Q10.998`
-- [x] Quadro mode: four source points per MQ with prism-only `-0.04 m` height offset
+- [x] Dot-format ID parsing: `G01.001..G10.998`, `P01.001..P10.998`, `Q01.001..Q10.998`, `QL01.001..QL10.998`
+- [x] Quadro modes: four source points per MQ with prism-only `-0.04 m` height offset
 - [x] Per-pattern dynamic UI configuration
 - [x] Session-based multi-run architecture (files in memory)
 - [x] Pattern mode: multi-pattern, multi-file processing

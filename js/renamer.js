@@ -179,7 +179,7 @@ function getPairIndexFromPointIndex(index) {
 }
 
 function getMqGroupIndexFromParsedPoint(parsedPointId) {
-    if (parsedPointId && parsedPointId.family === 'Q') {
+    if (parsedPointId && (parsedPointId.family === 'Q' || parsedPointId.family === 'QL')) {
         return Math.floor((parsedPointId.index - 1) / 4);
     }
     return getPairIndexFromPointIndex(parsedPointId.index);

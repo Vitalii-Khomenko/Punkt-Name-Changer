@@ -29,7 +29,7 @@ GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
-POINT_ID_RE = re.compile(r"^([GPQ])(0[1-9]|10)\.(\d{3})$")
+POINT_ID_RE = re.compile(r"^(QL|[GPQ])(0[1-9]|10)\.(\d{3})$")
 
 
 def pad2(value: int) -> str:
@@ -61,6 +61,8 @@ def parse_point_id(value: str) -> dict[str, object] | None:
 def suffix_code(parsed: dict[str, object]) -> str:
     if parsed["family"] == "Q":
         return ["03", "04", "01", "02"][(int(parsed["index"]) - 1) % 4]
+    if parsed["family"] == "QL":
+        return ["01", "03", "04", "02"][(int(parsed["index"]) - 1) % 4]
 
     is_odd = int(parsed["index"]) % 2 != 0
     if parsed["family"] == "P":
@@ -69,7 +71,12 @@ def suffix_code(parsed: dict[str, object]) -> str:
 
 
 def is_quadro_prism(parsed: dict[str, object]) -> bool:
-    return parsed["family"] == "Q" and (int(parsed["index"]) - 1) % 4 >= 2
+    position = (int(parsed["index"]) - 1) % 4
+    if parsed["family"] == "Q":
+        return position >= 2
+    if parsed["family"] == "QL":
+        return position in {0, 3}
+    return False
 
 
 def pair_index(source_index: int) -> int:
@@ -77,7 +84,7 @@ def pair_index(source_index: int) -> int:
 
 
 def mq_group_index(parsed: dict[str, object]) -> int:
-    if parsed["family"] == "Q":
+    if parsed["family"] in {"Q", "QL"}:
         return (int(parsed["index"]) - 1) // 4
     return pair_index(int(parsed["index"]))
 
@@ -300,6 +307,26 @@ def make_quadro_session(start_index: int, start_mq: int, limit: int) -> dict[str
     }
 
 
+def make_ql_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
+    start_id = f"QL01.{pad3(start_index)}"
+    parsed_start = parse_point_id(start_id)
+    assert parsed_start is not None
+    return {
+        "patternKey": "QL01",
+        "basePrefix": "3560",
+        "startOldId": start_id,
+        "startIndex": start_index,
+        "startMq": start_mq,
+        "startPairIndex": mq_group_index(parsed_start),
+        "mqIndex": start_mq,
+        "limit": limit,
+        "renamedCount": 0,
+        "active": False,
+        "done": False,
+        "lastSuffixCode": None,
+    }
+
+
 class RenamingRegressionTests(unittest.TestCase):
     def test_partial_ipkt_source_gap_preserves_mq_pair_numbers(self) -> None:
         content = build_sample_ipkt()
@@ -344,6 +371,7 @@ class RenamingRegressionTests(unittest.TestCase):
 
     def test_quadro_index_groups_preserve_skipped_section_numbers(self) -> None:
         self.assertIsNone(parse_point_id("Q12.001"))
+        self.assertIsNone(parse_point_id("QL12.001"))
 
         indexes = list(range(1, 9)) + list(range(37, 41)) + list(range(45, 49))
         content = "\n".join(make_ipkt_line(lfnr, f"Q01.{pad3(idx)}") for lfnr, idx in enumerate(indexes, 1))
@@ -357,6 +385,37 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn("3560.MQ10.03", output)
         self.assertIn("3560.MQ10.02", output)
         self.assertIn("3560.MQ12.03", output)
+        self.assertIn("3560.MQ12.02", output)
+        self.assertEqual(session["mqIndex"], 13)
+
+    def test_ql_mode_maps_prism_rail_rail_prism_order_and_offsets_prisms(self) -> None:
+        content = "\n".join(make_ipkt_line(idx, f"QL01.{pad3(idx)}") for idx in range(1, 5))
+        session = make_ql_session(start_index=1, start_mq=1, limit=4)
+
+        output, count = process_ipkt_pattern(content, session)
+
+        self.assertEqual(count, 4)
+        self.assertIn("3560.MQ01.01", output)
+        self.assertIn("3560.MQ01.03", output)
+        self.assertIn("3560.MQ01.04", output)
+        self.assertIn("3560.MQ01.02", output)
+        self.assertEqual(output.count("82.96000"), 2)
+        self.assertEqual(output.count("83.00000"), 2)
+        self.assertEqual(session["mqIndex"], 2)
+
+    def test_ql_index_groups_preserve_skipped_section_numbers(self) -> None:
+        indexes = list(range(1, 9)) + list(range(37, 41)) + list(range(45, 49))
+        content = "\n".join(make_ipkt_line(lfnr, f"QL01.{pad3(idx)}") for lfnr, idx in enumerate(indexes, 1))
+        session = make_ql_session(start_index=1, start_mq=1, limit=len(indexes))
+
+        output, count = process_ipkt_pattern(content, session)
+
+        self.assertEqual(count, len(indexes))
+        self.assertIn("3560.MQ01.01", output)
+        self.assertIn("3560.MQ02.02", output)
+        self.assertIn("3560.MQ10.01", output)
+        self.assertIn("3560.MQ10.02", output)
+        self.assertIn("3560.MQ12.01", output)
         self.assertIn("3560.MQ12.02", output)
         self.assertEqual(session["mqIndex"], 13)
 

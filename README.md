@@ -30,11 +30,11 @@ Optimized for field use (tested on Samsung A55). No server or installation requi
 
 | Part     | Values         | Example   |
 |----------|----------------|-----------|
-| Family   | `G`, `P`, or `Q` | `G`, `P`, `Q` |
+| Family   | `G`, `P`, `Q`, or `QL` | `G`, `P`, `Q`, `QL` |
 | Path     | `01`..`10`     | `05`      |
 | Index    | `001`..`998`   | `023`     |
 
-Examples: `G01.001`, `P05.003`, `Q01.004`, `G10.998`
+Examples: `G01.001`, `P05.003`, `Q01.004`, `QL01.004`, `G10.998`
 
 Points outside this format are ignored.
 
@@ -60,11 +60,15 @@ Example: `3560.MQ03.01`
 | `Q`    | 2nd in each group of 4 | `04` |
 | `Q`    | 3rd in each group of 4 | `01` |
 | `Q`    | 4th in each group of 4 | `02` |
+| `QL`   | 1st in each group of 4 | `01` |
+| `QL`   | 2nd in each group of 4 | `03` |
+| `QL`   | 3rd in each group of 4 | `04` |
+| `QL`   | 4th in each group of 4 | `02` |
 
 ### Quadro Measurement Mode
 
-`Q` patterns are an additional measurement mode for one combined four-point setup.
-Each group of four source points shares one MQ index:
+`Q` and `QL` patterns are additional measurement modes for one combined four-point setup.
+Each group of four source points shares one MQ index. `Q` records rail, rail, prism, prism:
 
 | Source ID | Output suffix | Role |
 |-----------|---------------|------|
@@ -73,18 +77,27 @@ Each group of four source points shares one MQ index:
 | `Q01.003` | `01` | Prism point 1 |
 | `Q01.004` | `02` | Prism point 2 |
 
+`QL` records prism, rail, rail, prism:
+
+| Source ID | Output suffix | Role |
+|-----------|---------------|------|
+| `QL01.001` | `01` | Prism point 1 |
+| `QL01.002` | `03` | Rail point 1 |
+| `QL01.003` | `04` | Rail point 2 |
+| `QL01.004` | `02` | Prism point 2 |
+
 For Quadro prism points only, the tool subtracts `0.04 m` from the existing height field while preserving the original numeric formatting as much as possible.
 
 ### MQ Index Numbering Rules
 
 `G` and `P` points naturally come in pairs: `001/002`, `003/004`, `071/072`, and so on.
-Odd + even points from the same source pair share the same MQ. `Q` points use groups of four, so `001..004` share one MQ, `005..008` share the next MQ, and so on.
+Odd + even points from the same source pair share the same MQ. `Q` and `QL` points use groups of four, so `001..004` share one MQ, `005..008` share the next MQ, and so on.
 
-MQ is based on the original source point pair index for `G`/`P` and on the original source group-of-four index for `Q`, not only on the count of rows encountered in the file:
+MQ is based on the original source point pair index for `G`/`P` and on the original source group-of-four index for `Q`/`QL`, not only on the count of rows encountered in the file:
 
 ```
-G/P groupIndex = floor((sourceIndex - 1) / 2)
-Q groupIndex   = floor((sourceIndex - 1) / 4)
+G/P groupIndex  = floor((sourceIndex - 1) / 2)
+Q/QL groupIndex = floor((sourceIndex - 1) / 4)
 mqIndex = startMq + groupIndex - startGroupIndex
 ```
 
@@ -98,7 +111,7 @@ Example with Start Point `G01.001` and Start MQ `1`:
 | `G01.088` | `MQ44` |
 
 This means partial measurements work correctly when the file contains the first part of a path and then jumps to the end of the path.
-For Quadro patterns, skipped sections are represented by the source index inside the same path. For example, with Start Point `Q01.001` and Start MQ `1`, `Q01.001..Q01.004` maps to `MQ01`, `Q01.005..Q01.008` maps to `MQ02`, `Q01.037..Q01.040` maps to `MQ10`, and `Q01.045..Q01.048` maps to `MQ12`.
+For Quadro patterns, skipped sections are represented by the source index inside the same path. For example, with Start Point `Q01.001` or `QL01.001` and Start MQ `1`, indexes `001..004` map to `MQ01`, `005..008` map to `MQ02`, `037..040` map to `MQ10`, and `045..048` map to `MQ12`.
 
 ---
 
@@ -113,7 +126,7 @@ Upload all related files (master + siblings). The tool reads everything into ses
 Choose the file used as the coordinate reference (`.imes` or `.ipkt` preferred).
 The tool automatically:
 - parses all point IDs and their coordinates from the master,
-- detects all present dot-format patterns (e.g. `G05`, `P02`, `Q01`),
+- detects all present dot-format patterns (e.g. `G05`, `P02`, `Q01`, `QL01`),
 - renders a configuration row for each pattern.
 
 ### 3. Configure Patterns (Pattern Mode)
@@ -171,7 +184,7 @@ Starting a new file selection resets the session completely.
 
 - **Pre-read file safety**: unsupported extensions are skipped before reading, files over 10 MB are skipped, and one session is capped at 30 MB total.
 - **Coordinate validation**: each candidate rename is checked against the master coordinate (Y, X tolerance ± 0.05 m). Mismatches are skipped with a warning.
-- **Quadro height adjustment**: `Q` prism positions only receive a `-0.04 m` height offset during rename.
+- **Quadro height adjustment**: `Q` and `QL` prism positions only receive a `-0.04 m` height offset during rename.
 - **Format preservation**: replacement strings are padded to preserve the original field width in every format.
 - **Safe name components**: pattern base prefixes and export suffixes may contain only letters, numbers, dot, underscore, and hyphen.
 - **Header/station exclusion**: in `.iroh`, lines with `CLS:STAT` or `CODE:iGeo` are never renamed.
