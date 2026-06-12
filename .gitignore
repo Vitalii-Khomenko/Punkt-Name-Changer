@@ -17,3 +17,4 @@ dist/
 *_log.txt
 *.tmp
 *.bak
+*.ipkt
