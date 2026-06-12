@@ -12,10 +12,16 @@ from pathlib import Path
 TARGET_PATTERN_RE = re.compile(r"^(?:QL|[GPQ])(?:0[1-9]|10)$")
 
 
+def get_ex_mq_index(start_mq: int, group_index: int) -> int:
+    """Return the EX MQ number while reserving MQ23."""
+    mq_index = start_mq + group_index
+    return mq_index + 1 if start_mq <= 23 <= mq_index else mq_index
+
+
 def normalize_pipe_content(
     content: bytes,
     source_prefix: str = "101",
-    target_pattern: str = "G01",
+    target_pattern: str = "P01",
     ex_start_mq: int = 19,
 ) -> tuple[bytes, int, int]:
     """Replace numeric and EX IDs in Leica pipe records without reformatting."""
@@ -58,7 +64,7 @@ def normalize_pipe_content(
             new_id = target_pattern_bytes + b"." + f"{index:03d}".encode("ascii")
             numeric_replacement_count += 1
         else:
-            mq_index = ex_start_mq + (index - 1) // 4
+            mq_index = get_ex_mq_index(ex_start_mq, (index - 1) // 4)
             group_position = (index - 1) % 4 + 1
             new_id = (
                 source_prefix_bytes
@@ -90,7 +96,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Convert simple numeric Leica point IDs such as 101.1 into "
-            "PunktNameChanger IDs such as G01.001."
+            "PunktNameChanger IDs such as P01.001."
         )
     )
     parser.add_argument("input", type=Path, help="Input .imes or .ipkt file.")
@@ -107,8 +113,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--target-pattern",
-        default="G01",
-        help="Target PunktNameChanger family and path. Default: G01.",
+        default="P01",
+        help="Target PunktNameChanger family and path. Default: P01.",
     )
     parser.add_argument(
         "--ex-start-mq",
@@ -189,6 +195,7 @@ def main(argv: list[str] | None = None) -> int:
         f"Normalized {ex_replacement_count} EX point IDs: "
         f"{args.source_prefix}.EX.NN -> {args.source_prefix}.MQ{args.ex_start_mq}-1..4 groups"
     )
+    print("Reserved EX MQ number: 23")
     print(f"Output: {output_path}")
     if args.in_place:
         print(f"Backup: {backup_path}")

@@ -333,11 +333,13 @@ class RenamingRegressionTests(unittest.TestCase):
     def test_numeric_ipkt_normalizer_preserves_layout_and_groups_ex_ids(self) -> None:
         source = (
             b"# header with non-UTF8: \x84\r\n"
-            b" 000001|  |      |  |      |      |               101.1|YXZ| 1.00000| 2.00000|\r\n"
+            b" 000001|  |      |  |      |      |              101.01|YXZ| 1.00000| 2.00000|\r\n"
             b" 000002|  |      |  |      |      |              101.90|YXZ| 3.00000| 4.00000|\r\n"
             b" 000003|  |      |  |      |      |           101.EX.01|YXZ| 5.00000| 6.00000|\r\n"
             b" 000004|  |      |  |      |      |           101.EX.04|YXZ| 7.00000| 8.00000|\r\n"
             b" 000005|  |      |  |      |      |           101.EX.05|YXZ| 9.00000| 10.00000|\r\n"
+            b" 000006|  |      |  |      |      |           101.EX.16|YXZ| 11.00000| 12.00000|\r\n"
+            b" 000007|  |      |  |      |      |           101.EX.17|YXZ| 13.00000| 14.00000|\r\n"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -362,13 +364,17 @@ class RenamingRegressionTests(unittest.TestCase):
 
         self.assertEqual(len(source), len(normalized))
         self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
-        self.assertIn(b"             G01.001|YXZ| 1.00000| 2.00000|", normalized)
-        self.assertIn(b"             G01.090|YXZ| 3.00000| 4.00000|", normalized)
+        self.assertIn(b"             P01.001|YXZ| 1.00000| 2.00000|", normalized)
+        self.assertIn(b"             P01.090|YXZ| 3.00000| 4.00000|", normalized)
         self.assertIn(b"          101.MQ19-1|YXZ| 5.00000| 6.00000|", normalized)
         self.assertIn(b"          101.MQ19-4|YXZ| 7.00000| 8.00000|", normalized)
         self.assertIn(b"          101.MQ20-1|YXZ| 9.00000| 10.00000|", normalized)
+        self.assertIn(b"          101.MQ22-4|YXZ| 11.00000| 12.00000|", normalized)
+        self.assertIn(b"          101.MQ24-1|YXZ| 13.00000| 14.00000|", normalized)
+        self.assertNotIn(b"101.MQ23-", normalized)
         self.assertIn("Normalized 2 numeric point IDs", result.stdout)
-        self.assertIn("Normalized 3 EX point IDs", result.stdout)
+        self.assertIn("Normalized 5 EX point IDs", result.stdout)
+        self.assertIn("Reserved EX MQ number: 23", result.stdout)
 
     def test_partial_ipkt_source_gap_preserves_mq_pair_numbers(self) -> None:
         content = build_sample_ipkt()

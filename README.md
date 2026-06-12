@@ -47,14 +47,14 @@ dot format required by the browser app. The included Python utility converts
 one numeric series into a supported pattern while preserving fixed-width
 alignment, original line endings, and all non-ID bytes.
 
-For the default conversion `101.1` → `G01.001`:
+For the default prism conversion `101.1` or `101.01` → `P01.001`:
 
 ```bash
 python scripts/normalize_leica_point_ids.py 20260612_YXZ.ipkt
 ```
 
 This writes `20260612_YXZ_normalized.ipkt`. It converts `101.1` through
-`101.998` into `G01.001` through `G01.998`. It also converts the `101.EX.NN`
+`101.998` into `P01.001` through `P01.998`. It also converts the `101.EX.NN`
 series into groups of four, starting at MQ 19:
 
 | Source IDs | Normalized IDs |
@@ -62,6 +62,10 @@ series into groups of four, starting at MQ 19:
 | `101.EX.01..04` | `101.MQ19-1..4` |
 | `101.EX.05..08` | `101.MQ20-1..4` |
 | `101.EX.09..12` | `101.MQ21-1..4` |
+| `101.EX.13..16` | `101.MQ22-1..4` |
+| `101.EX.17..20` | `101.MQ24-1..4` |
+
+`MQ23` is reserved, so the EX sequence jumps from `MQ22` directly to `MQ24`.
 
 Set another EX starting MQ when needed:
 
