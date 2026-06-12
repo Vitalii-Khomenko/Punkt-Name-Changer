@@ -14,7 +14,7 @@ python tests/run_validation.py
 
 | Case | Expected behavior |
 | --- | --- |
-| Gleis prefix normalization | The focused Python mini-script maps source pairs to every other MQ (`G101.01/02` → `G01.001/002`, `G101.03/04` → `G01.005/006`), preserves fixed-width bytes, and leaves non-matching control points unchanged. |
+| Gleis prefix normalization | The focused Python mini-script maps source pairs to every other MQ, uses consecutive MQs for `G101.19..36`, resumes every-other-MQ mapping after point 36, preserves fixed-width bytes, and leaves non-matching control points unchanged. |
 | Numeric Leica ID normalization | The Python preprocessor converts prism ID `101.1` to `P01.001`, maps EX points into four-point MQ groups while reserving MQ23, and preserves fixed-width bytes and CRLF endings. |
 | Partial `.ipkt` measurement with a source gap | `G01.001` starts at `MQ01`, while `G01.071` maps to `MQ36` when the configured start is `G01.001` / `MQ01`. |
 | Offset start point | If the configured start point is `G01.071` / `MQ01`, then `G01.071` maps to `MQ01` and `G01.078` maps to `MQ04`. |

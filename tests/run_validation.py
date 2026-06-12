@@ -339,7 +339,11 @@ class RenamingRegressionTests(unittest.TestCase):
             b" 000003|  |      |  |      |      |             G101.02|YXZ| 5.00000| 6.00000|\r\n"
             b" 000004|  |      |  |      |      |             G101.03|YXZ| 7.00000| 8.00000|\r\n"
             b" 000005|  |      |  |      |      |             G101.04|YXZ| 9.00000| 10.00000|\r\n"
-            b" 000006|  |      |  |      |      |             G101.54|YXZ| 11.00000| 12.00000|\r\n"
+            b" 000006|  |      |  |      |      |             G101.19|YXZ| 11.00000| 12.00000|\r\n"
+            b" 000007|  |      |  |      |      |             G101.21|YXZ| 13.00000| 14.00000|\r\n"
+            b" 000008|  |      |  |      |      |             G101.36|YXZ| 15.00000| 16.00000|\r\n"
+            b" 000009|  |      |  |      |      |             G101.37|YXZ| 17.00000| 18.00000|\r\n"
+            b" 000010|  |      |  |      |      |             G101.54|YXZ| 19.00000| 20.00000|\r\n"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -369,9 +373,16 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn(b"             G01.002|YXZ| 5.00000| 6.00000|", normalized)
         self.assertIn(b"             G01.005|YXZ| 7.00000| 8.00000|", normalized)
         self.assertIn(b"             G01.006|YXZ| 9.00000| 10.00000|", normalized)
-        self.assertIn(b"             G01.106|YXZ| 11.00000| 12.00000|", normalized)
+        self.assertIn(b"             G01.037|YXZ| 11.00000| 12.00000|", normalized)
+        self.assertIn(b"             G01.039|YXZ| 13.00000| 14.00000|", normalized)
+        self.assertIn(b"             G01.054|YXZ| 15.00000| 16.00000|", normalized)
+        self.assertIn(b"             G01.057|YXZ| 17.00000| 18.00000|", normalized)
+        self.assertIn(b"             G01.090|YXZ| 19.00000| 20.00000|", normalized)
         self.assertNotIn(b"G101.", normalized)
-        self.assertIn("Replaced 5 point IDs: G101.N -> G01.NNN with MQ step 2", result.stdout)
+        self.assertIn(
+            "Replaced 9 point IDs: G101.N -> G01.NNN with MQ step 2 outside points 19..36",
+            result.stdout,
+        )
 
     def test_numeric_ipkt_normalizer_preserves_layout_and_groups_ex_ids(self) -> None:
         source = (

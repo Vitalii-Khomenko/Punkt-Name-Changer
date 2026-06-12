@@ -11,13 +11,32 @@ from pathlib import Path
 SAFE_PREFIX_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+def get_segmented_mq_index(
+    pair_index: int,
+    mq_step: int,
+    consecutive_start_point: int,
+    consecutive_end_point: int,
+) -> int:
+    """Return MQ for a pair, using consecutive MQs inside one point range."""
+    base_mq = 1 + pair_index * mq_step
+    start_pair_index = (consecutive_start_point - 1) // 2
+    end_pair_index = (consecutive_end_point - 1) // 2
+    consecutive_transitions = max(
+        0,
+        min(pair_index, end_pair_index) - start_pair_index,
+    )
+    return base_mq - consecutive_transitions * (mq_step - 1)
+
+
 def replace_pipe_point_prefix(
     content: bytes,
     source_prefix: str = "G101",
     target_prefix: str = "G01",
     mq_step: int = 2,
+    consecutive_start_point: int = 19,
+    consecutive_end_point: int = 36,
 ) -> tuple[bytes, int]:
-    """Normalize point pairs while advancing by the configured MQ step."""
+    """Normalize point pairs with one consecutive-MQ source point range."""
     source_prefix_bytes = source_prefix.encode("ascii")
     target_prefix_bytes = target_prefix.encode("ascii")
     point_id_re = re.compile(
@@ -51,7 +70,13 @@ def replace_pipe_point_prefix(
 
         pair_index = (suffix_index - 1) // 2
         pair_position = (suffix_index - 1) % 2
-        target_index = pair_index * 2 * mq_step + pair_position + 1
+        mq_index = get_segmented_mq_index(
+            pair_index,
+            mq_step,
+            consecutive_start_point,
+            consecutive_end_point,
+        )
+        target_index = (mq_index - 1) * 2 + pair_position + 1
         if target_index > 998:
             raise ValueError(
                 f"Mapped point index {target_index} exceeds the supported maximum 998."
@@ -79,7 +104,7 @@ def default_output_path(input_path: Path) -> Path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Normalize G101.N point pairs to G01.NNN with an MQ step."
+        description="Normalize G101.N point pairs with a consecutive-MQ range."
     )
     parser.add_argument("input", type=Path, help="Input .imes or .ipkt file.")
     parser.add_argument(
@@ -102,7 +127,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--mq-step",
         type=int,
         default=2,
-        help="MQ increment between consecutive source point pairs. Default: 2.",
+        help="MQ increment outside the consecutive range. Default: 2.",
+    )
+    parser.add_argument(
+        "--consecutive-start-point",
+        type=int,
+        default=19,
+        help="First source point in the consecutive-MQ range. Default: 19.",
+    )
+    parser.add_argument(
+        "--consecutive-end-point",
+        type=int,
+        default=36,
+        help="Last source point in the consecutive-MQ range. Default: 36.",
     )
     parser.add_argument(
         "--force",
@@ -116,6 +153,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             parser.error(f"--{option_name.replace('_', '-')} contains invalid characters.")
     if args.mq_step < 1:
         parser.error("--mq-step must be at least 1.")
+    if args.consecutive_start_point < 1 or args.consecutive_end_point < 1:
+        parser.error("Consecutive range point numbers must be at least 1.")
+    if args.consecutive_start_point > args.consecutive_end_point:
+        parser.error("--consecutive-start-point cannot exceed --consecutive-end-point.")
+    if args.consecutive_start_point % 2 == 0 or args.consecutive_end_point % 2 != 0:
+        parser.error("Consecutive range must start on an odd point and end on an even point.")
 
     return args
 
@@ -140,13 +183,16 @@ def main(argv: list[str] | None = None) -> int:
         source_prefix=args.source_prefix,
         target_prefix=args.target_prefix,
         mq_step=args.mq_step,
+        consecutive_start_point=args.consecutive_start_point,
+        consecutive_end_point=args.consecutive_end_point,
     )
     output_path.write_bytes(normalized)
 
     print(
         f"Replaced {replacement_count} point IDs: "
         f"{args.source_prefix}.N -> {args.target_prefix}.NNN "
-        f"with MQ step {args.mq_step}"
+        f"with MQ step {args.mq_step} outside points "
+        f"{args.consecutive_start_point}..{args.consecutive_end_point}"
     )
     print(f"Output: {output_path}")
     return 0

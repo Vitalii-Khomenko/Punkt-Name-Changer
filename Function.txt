@@ -21,9 +21,9 @@ Core behavior:
   reserved from the EX sequence.
 - The separate `scripts/normalize_gleis_point_prefix.py` mini-script converts
   Gleis IDs into three-digit project format while preserving the fixed-width
-  pipe-file layout. By default, source pairs advance by two MQ positions:
-  `G101.01/02` maps to `G01.001/002`, then `G101.03/04` maps to
-  `G01.005/006`.
+  pipe-file layout. Source pairs normally advance by two MQ positions, but
+  source points `G101.19..36` use consecutive MQs. After point 36, the
+  every-other-MQ sequence resumes.
 - Supported point IDs use dot format only: `G01.001..G10.998`,
   `P01.001..P10.998`, `Q01.001..Q10.998`, and
   `QL01.001..QL10.998`.

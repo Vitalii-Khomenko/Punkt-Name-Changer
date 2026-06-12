@@ -91,16 +91,22 @@ mini-script:
 python scripts/normalize_gleis_point_prefix.py "20260612_YXZ_Gleis 101_Gleisaufnahme.ipkt"
 ```
 
-By default, it treats each two-point measurement as the next odd MQ:
+By default, it uses every other MQ, except source points `G101.19..G101.36`,
+which use consecutive MQs:
 
 | Source IDs | Normalized IDs | MQ |
 | --- | --- | --- |
 | `G101.01 / G101.02` | `G01.001 / G01.002` | `MQ01` |
 | `G101.03 / G101.04` | `G01.005 / G01.006` | `MQ03` |
-| `G101.05 / G101.06` | `G01.009 / G01.010` | `MQ05` |
+| `G101.17 / G101.18` | `G01.033 / G01.034` | `MQ17` |
+| `G101.19 / G101.20` | `G01.037 / G01.038` | `MQ19` |
+| `G101.21 / G101.22` | `G01.039 / G01.040` | `MQ20` |
+| `G101.35 / G101.36` | `G01.053 / G01.054` | `MQ27` |
+| `G101.37 / G101.38` | `G01.057 / G01.058` | `MQ29` |
 
-The script leaves other points such as `T1..T4` unchanged. Use `--mq-step 1`
-only when consecutive MQ numbering is required.
+The script leaves other points such as `T1..T4` unchanged. The consecutive
+range can be changed with `--consecutive-start-point` and
+`--consecutive-end-point`.
 
 ---
 
