@@ -338,8 +338,6 @@ class RenamingRegressionTests(unittest.TestCase):
             b" 000003|  |      |  |      |      |           101.EX.01|YXZ| 5.00000| 6.00000|\r\n"
             b" 000004|  |      |  |      |      |           101.EX.04|YXZ| 7.00000| 8.00000|\r\n"
             b" 000005|  |      |  |      |      |           101.EX.05|YXZ| 9.00000| 10.00000|\r\n"
-            b" 000006|  |      |  |      |      |           101.EX.12|YXZ| 11.00000| 12.00000|\r\n"
-            b" 000007|  |      |  |      |      |           101.EX.13|YXZ| 13.00000| 14.00000|\r\n"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -369,13 +367,8 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn(b"          101.MQ19-1|YXZ| 5.00000| 6.00000|", normalized)
         self.assertIn(b"          101.MQ19-4|YXZ| 7.00000| 8.00000|", normalized)
         self.assertIn(b"          101.MQ20-1|YXZ| 9.00000| 10.00000|", normalized)
-        self.assertIn(b"          101.MQ21-4|YXZ| 11.00000| 12.00000|", normalized)
-        self.assertIn(b"          101.MQ24-1|YXZ| 13.00000| 14.00000|", normalized)
-        self.assertNotIn(b"101.MQ22-", normalized)
-        self.assertNotIn(b"101.MQ23-", normalized)
         self.assertIn("Normalized 2 numeric point IDs", result.stdout)
-        self.assertIn("Normalized 5 EX point IDs", result.stdout)
-        self.assertIn("Skipped reserved EX MQ numbers: 22,23", result.stdout)
+        self.assertIn("Normalized 3 EX point IDs", result.stdout)
 
     def test_partial_ipkt_source_gap_preserves_mq_pair_numbers(self) -> None:
         content = build_sample_ipkt()

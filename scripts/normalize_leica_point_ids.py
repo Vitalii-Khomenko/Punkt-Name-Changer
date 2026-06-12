@@ -12,32 +12,13 @@ from pathlib import Path
 TARGET_PATTERN_RE = re.compile(r"^(?:QL|[GPQ])(?:0[1-9]|10)$")
 
 
-def get_ex_mq_index(start_mq: int, group_index: int, skipped_mq: set[int]) -> int:
-    """Return the MQ number after advancing past reserved MQ numbers."""
-    mq_index = start_mq
-    groups_advanced = 0
-
-    while mq_index in skipped_mq:
-        mq_index += 1
-
-    while groups_advanced < group_index:
-        mq_index += 1
-        while mq_index in skipped_mq:
-            mq_index += 1
-        groups_advanced += 1
-
-    return mq_index
-
-
 def normalize_pipe_content(
     content: bytes,
     source_prefix: str = "101",
     target_pattern: str = "G01",
     ex_start_mq: int = 19,
-    ex_skip_mq: set[int] | None = None,
 ) -> tuple[bytes, int, int]:
     """Replace numeric and EX IDs in Leica pipe records without reformatting."""
-    skipped_mq = {22, 23} if ex_skip_mq is None else ex_skip_mq
     source_prefix_bytes = source_prefix.encode("ascii")
     target_pattern_bytes = target_pattern.upper().encode("ascii")
     source_id_re = re.compile(rb"^" + re.escape(source_prefix_bytes) + rb"\.(\d{1,3})$")
@@ -77,7 +58,7 @@ def normalize_pipe_content(
             new_id = target_pattern_bytes + b"." + f"{index:03d}".encode("ascii")
             numeric_replacement_count += 1
         else:
-            mq_index = get_ex_mq_index(ex_start_mq, (index - 1) // 4, skipped_mq)
+            mq_index = ex_start_mq + (index - 1) // 4
             group_position = (index - 1) % 4 + 1
             new_id = (
                 source_prefix_bytes
@@ -136,11 +117,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Starting MQ number for source-prefix.EX.01 groups. Default: 19.",
     )
     parser.add_argument(
-        "--ex-skip-mq",
-        default="22,23",
-        help="Comma-separated MQ numbers reserved from the EX sequence. Default: 22,23.",
-    )
-    parser.add_argument(
         "--in-place",
         action="store_true",
         help="Replace the input file and create a .bak backup.",
@@ -158,16 +134,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--source-prefix must contain digits only.")
     if args.ex_start_mq < 1:
         parser.error("--ex-start-mq must be at least 1.")
-    try:
-        args.ex_skip_mq = {
-            int(value.strip())
-            for value in args.ex_skip_mq.split(",")
-            if value.strip()
-        }
-    except ValueError:
-        parser.error("--ex-skip-mq must contain comma-separated positive integers.")
-    if any(value < 1 for value in args.ex_skip_mq):
-        parser.error("--ex-skip-mq must contain comma-separated positive integers.")
     args.target_pattern = args.target_pattern.upper()
     if not TARGET_PATTERN_RE.fullmatch(args.target_pattern):
         parser.error(
@@ -209,7 +175,6 @@ def main(argv: list[str] | None = None) -> int:
         source_prefix=args.source_prefix,
         target_pattern=args.target_pattern,
         ex_start_mq=args.ex_start_mq,
-        ex_skip_mq=args.ex_skip_mq,
     )
 
     if args.in_place:
@@ -224,9 +189,6 @@ def main(argv: list[str] | None = None) -> int:
         f"Normalized {ex_replacement_count} EX point IDs: "
         f"{args.source_prefix}.EX.NN -> {args.source_prefix}.MQ{args.ex_start_mq}-1..4 groups"
     )
-    if args.ex_skip_mq:
-        skipped_text = ",".join(str(value) for value in sorted(args.ex_skip_mq))
-        print(f"Skipped reserved EX MQ numbers: {skipped_text}")
     print(f"Output: {output_path}")
     if args.in_place:
         print(f"Backup: {backup_path}")

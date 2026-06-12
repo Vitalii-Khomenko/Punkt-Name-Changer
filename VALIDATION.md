@@ -14,7 +14,7 @@ python tests/run_validation.py
 
 | Case | Expected behavior |
 | --- | --- |
-| Numeric Leica ID normalization | The Python preprocessor converts `101.1` to `G01.001`, maps EX points into four-point MQ groups, skips reserved MQ numbers 22 and 23, and preserves fixed-width bytes and CRLF endings. |
+| Numeric Leica ID normalization | The Python preprocessor converts `101.1` to `G01.001`, maps `101.EX.01..05` into four-point groups `101.MQ19-1..101.MQ20-1`, and preserves fixed-width bytes and CRLF endings. |
 | Partial `.ipkt` measurement with a source gap | `G01.001` starts at `MQ01`, while `G01.071` maps to `MQ36` when the configured start is `G01.001` / `MQ01`. |
 | Offset start point | If the configured start point is `G01.071` / `MQ01`, then `G01.071` maps to `MQ01` and `G01.078` maps to `MQ04`. |
 | Quadro mode | `Q01.001..Q01.004` maps to one MQ with suffixes `03`, `04`, `01`, `02`, and only the two prism positions receive the `-0.04 m` height offset. |
