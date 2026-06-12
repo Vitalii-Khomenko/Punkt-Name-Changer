@@ -91,9 +91,16 @@ mini-script:
 python scripts/normalize_gleis_point_prefix.py "20260612_YXZ_Gleis 101_Gleisaufnahme.ipkt"
 ```
 
-By default, it converts `G101.01` through `G101.N` into the project format
-`G01.001` through `G01.NNN`. It leaves other points such as `T1..T4`
-unchanged.
+By default, it treats each two-point measurement as the next odd MQ:
+
+| Source IDs | Normalized IDs | MQ |
+| --- | --- | --- |
+| `G101.01 / G101.02` | `G01.001 / G01.002` | `MQ01` |
+| `G101.03 / G101.04` | `G01.005 / G01.006` | `MQ03` |
+| `G101.05 / G101.06` | `G01.009 / G01.010` | `MQ05` |
+
+The script leaves other points such as `T1..T4` unchanged. Use `--mq-step 1`
+only when consecutive MQ numbering is required.
 
 ---
 

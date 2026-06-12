@@ -15,8 +15,9 @@ def replace_pipe_point_prefix(
     content: bytes,
     source_prefix: str = "G101",
     target_prefix: str = "G01",
+    mq_step: int = 2,
 ) -> tuple[bytes, int]:
-    """Replace matching prefixes and normalize numeric suffixes to three digits."""
+    """Normalize point pairs while advancing by the configured MQ step."""
     source_prefix_bytes = source_prefix.encode("ascii")
     target_prefix_bytes = target_prefix.encode("ascii")
     point_id_re = re.compile(
@@ -48,7 +49,15 @@ def replace_pipe_point_prefix(
             output_lines.append(line)
             continue
 
-        new_id = target_prefix_bytes + b"." + f"{suffix_index:03d}".encode("ascii")
+        pair_index = (suffix_index - 1) // 2
+        pair_position = (suffix_index - 1) % 2
+        target_index = pair_index * 2 * mq_step + pair_position + 1
+        if target_index > 998:
+            raise ValueError(
+                f"Mapped point index {target_index} exceeds the supported maximum 998."
+            )
+
+        new_id = target_prefix_bytes + b"." + f"{target_index:03d}".encode("ascii")
         if len(new_id) > len(original_field):
             raise ValueError(
                 f"Point ID {new_id.decode('ascii')} does not fit the "
@@ -70,7 +79,7 @@ def default_output_path(input_path: Path) -> Path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Replace G101.N Leica point IDs with G01.NNN."
+        description="Normalize G101.N point pairs to G01.NNN with an MQ step."
     )
     parser.add_argument("input", type=Path, help="Input .imes or .ipkt file.")
     parser.add_argument(
@@ -90,6 +99,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Replacement point prefix. Default: G01.",
     )
     parser.add_argument(
+        "--mq-step",
+        type=int,
+        default=2,
+        help="MQ increment between consecutive source point pairs. Default: 2.",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Allow replacing an existing output file.",
@@ -99,6 +114,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     for option_name in ("source_prefix", "target_prefix"):
         if not SAFE_PREFIX_RE.fullmatch(getattr(args, option_name)):
             parser.error(f"--{option_name.replace('_', '-')} contains invalid characters.")
+    if args.mq_step < 1:
+        parser.error("--mq-step must be at least 1.")
 
     return args
 
@@ -122,12 +139,14 @@ def main(argv: list[str] | None = None) -> int:
         input_path.read_bytes(),
         source_prefix=args.source_prefix,
         target_prefix=args.target_prefix,
+        mq_step=args.mq_step,
     )
     output_path.write_bytes(normalized)
 
     print(
         f"Replaced {replacement_count} point IDs: "
-        f"{args.source_prefix}.N -> {args.target_prefix}.NNN"
+        f"{args.source_prefix}.N -> {args.target_prefix}.NNN "
+        f"with MQ step {args.mq_step}"
     )
     print(f"Output: {output_path}")
     return 0

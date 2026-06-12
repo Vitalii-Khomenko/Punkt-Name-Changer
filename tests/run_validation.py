@@ -336,7 +336,10 @@ class RenamingRegressionTests(unittest.TestCase):
             b"# header with non-UTF8: \x84\r\n"
             b" 000001|  |      |  |      |      |                  T1|YXZ| 1.00000| 2.00000|\r\n"
             b" 000002|  |      |  |      |      |             G101.01|YXZ| 3.00000| 4.00000|\r\n"
-            b" 000003|  |      |  |      |      |             G101.54|YXZ| 5.00000| 6.00000|\r\n"
+            b" 000003|  |      |  |      |      |             G101.02|YXZ| 5.00000| 6.00000|\r\n"
+            b" 000004|  |      |  |      |      |             G101.03|YXZ| 7.00000| 8.00000|\r\n"
+            b" 000005|  |      |  |      |      |             G101.04|YXZ| 9.00000| 10.00000|\r\n"
+            b" 000006|  |      |  |      |      |             G101.54|YXZ| 11.00000| 12.00000|\r\n"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -363,9 +366,12 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
         self.assertIn(b"                  T1|YXZ| 1.00000| 2.00000|", normalized)
         self.assertIn(b"             G01.001|YXZ| 3.00000| 4.00000|", normalized)
-        self.assertIn(b"             G01.054|YXZ| 5.00000| 6.00000|", normalized)
+        self.assertIn(b"             G01.002|YXZ| 5.00000| 6.00000|", normalized)
+        self.assertIn(b"             G01.005|YXZ| 7.00000| 8.00000|", normalized)
+        self.assertIn(b"             G01.006|YXZ| 9.00000| 10.00000|", normalized)
+        self.assertIn(b"             G01.106|YXZ| 11.00000| 12.00000|", normalized)
         self.assertNotIn(b"G101.", normalized)
-        self.assertIn("Replaced 2 point IDs: G101.N -> G01.NNN", result.stdout)
+        self.assertIn("Replaced 5 point IDs: G101.N -> G01.NNN with MQ step 2", result.stdout)
 
     def test_numeric_ipkt_normalizer_preserves_layout_and_groups_ex_ids(self) -> None:
         source = (
