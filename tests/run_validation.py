@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -25,6 +26,7 @@ VALIDATION_PATH = ROOT / "VALIDATION.md"
 LICENSE_PATH = ROOT / "LICENSE"
 SECURITY_PATH = ROOT / "SECURITY.md"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
+NORMALIZE_SCRIPT_PATH = ROOT / "scripts" / "normalize_leica_point_ids.py"
 GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
@@ -328,6 +330,41 @@ def make_ql_session(start_index: int, start_mq: int, limit: int) -> dict[str, ob
 
 
 class RenamingRegressionTests(unittest.TestCase):
+    def test_numeric_ipkt_normalizer_preserves_layout_and_special_ids(self) -> None:
+        source = (
+            b"# header with non-UTF8: \x84\r\n"
+            b" 000001|  |      |  |      |      |               101.1|YXZ| 1.00000| 2.00000|\r\n"
+            b" 000002|  |      |  |      |      |              101.90|YXZ| 3.00000| 4.00000|\r\n"
+            b" 000003|  |      |  |      |      |           101.EX.01|YXZ| 5.00000| 6.00000|\r\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "sample.ipkt"
+            output_path = Path(temp_dir) / "sample_normalized.ipkt"
+            input_path.write_bytes(source)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(NORMALIZE_SCRIPT_PATH),
+                    str(input_path),
+                    "--output",
+                    str(output_path),
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            normalized = output_path.read_bytes()
+
+        self.assertEqual(len(source), len(normalized))
+        self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
+        self.assertIn(b"             G01.001|YXZ| 1.00000| 2.00000|", normalized)
+        self.assertIn(b"             G01.090|YXZ| 3.00000| 4.00000|", normalized)
+        self.assertIn(b"           101.EX.01|YXZ| 5.00000| 6.00000|", normalized)
+        self.assertIn("Normalized 2 point IDs", result.stdout)
+
     def test_partial_ipkt_source_gap_preserves_mq_pair_numbers(self) -> None:
         content = build_sample_ipkt()
         session = make_session(start_index=1, start_mq=1, limit=16)
@@ -458,6 +495,7 @@ class ProjectInvariantTests(unittest.TestCase):
             LICENSE_PATH,
             SECURITY_PATH,
             BUILD_SCRIPT_PATH,
+            NORMALIZE_SCRIPT_PATH,
             RENAMER_PATH,
             MAIN_PATH,
         ]

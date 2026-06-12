@@ -13,6 +13,7 @@ __pycache__/
 # Local generated outputs
 dist/
 *_renamed.*
+*_normalized.*
 *_log.txt
 *.tmp
 *.bak

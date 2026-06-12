@@ -40,6 +40,34 @@ Points outside this format are ignored.
 
 ---
 
+## Numeric Leica ID Normalizer
+
+Some Leica field files use simple numeric IDs such as `101.1` instead of the
+dot format required by the browser app. The included Python utility converts
+one numeric series into a supported pattern while preserving fixed-width
+alignment, original line endings, and all non-ID bytes.
+
+For the default conversion `101.1` → `G01.001`:
+
+```bash
+python scripts/normalize_leica_point_ids.py 20260612_YXZ.ipkt
+```
+
+This writes `20260612_YXZ_normalized.ipkt`. It converts `101.1` through
+`101.998` into `G01.001` through `G01.998`. IDs with extra sections, such as
+`101.EX.01`, remain unchanged.
+
+Use explicit mappings for other numeric series:
+
+```bash
+python scripts/normalize_leica_point_ids.py input.ipkt --source-prefix 205 --target-pattern P05
+```
+
+Use `--in-place` only when the original file should be replaced. In-place mode
+creates an adjacent `.bak` backup before writing.
+
+---
+
 ## Output Name Format
 
 ```

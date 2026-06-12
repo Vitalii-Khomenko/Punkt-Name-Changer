@@ -14,6 +14,9 @@ Source of truth:
 
 Core behavior:
 
+- The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
+  configured simple numeric series such as `101.1` into `G01.001` while
+  preserving pipe-file alignment and leaving compound IDs unchanged.
 - Supported point IDs use dot format only: `G01.001..G10.998`,
   `P01.001..P10.998`, `Q01.001..Q10.998`, and
   `QL01.001..QL10.998`.
