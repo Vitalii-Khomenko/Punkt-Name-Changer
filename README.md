@@ -62,11 +62,15 @@ series into groups of four, starting at MQ 19:
 | `101.EX.01..04` | `101.MQ19-1..4` |
 | `101.EX.05..08` | `101.MQ20-1..4` |
 | `101.EX.09..12` | `101.MQ21-1..4` |
+| `101.EX.13..16` | `101.MQ24-1..4` |
 
-Set another EX starting MQ when needed:
+MQ numbers `22` and `23` are reserved for the bridge and other point types, so
+the EX sequence jumps directly from `MQ21` to `MQ24`.
+
+Set another EX starting MQ or reserved MQ list when needed:
 
 ```bash
-python scripts/normalize_leica_point_ids.py input.ipkt --ex-start-mq 25
+python scripts/normalize_leica_point_ids.py input.ipkt --ex-start-mq 25 --ex-skip-mq 30,31
 ```
 
 Use explicit mappings for other numeric series:
