@@ -116,24 +116,26 @@ range can be changed with `--consecutive-start-point` and
 [BasePrefix].MQ[NN].[SuffixCode]
 ```
 
-Example: `3560.MQ03.01`
+Example: `3560.MQ03.1`
+
+Final suffix codes are always single digits: `1`, `2`, `3`, or `4`.
 
 ### Suffix Codes
 
 | Family | Index parity | Suffix |
 |--------|-------------|--------|
-| `P`    | Odd         | `01`   |
-| `P`    | Even        | `02`   |
-| `G`    | Odd         | `03`   |
-| `G`    | Even        | `04`   |
-| `Q`    | 1st in each group of 4 | `03` |
-| `Q`    | 2nd in each group of 4 | `04` |
-| `Q`    | 3rd in each group of 4 | `01` |
-| `Q`    | 4th in each group of 4 | `02` |
-| `QL`   | 1st in each group of 4 | `01` |
-| `QL`   | 2nd in each group of 4 | `03` |
-| `QL`   | 3rd in each group of 4 | `04` |
-| `QL`   | 4th in each group of 4 | `02` |
+| `P`    | Odd         | `1`   |
+| `P`    | Even        | `2`   |
+| `G`    | Odd         | `3`   |
+| `G`    | Even        | `4`   |
+| `Q`    | 1st in each group of 4 | `3` |
+| `Q`    | 2nd in each group of 4 | `4` |
+| `Q`    | 3rd in each group of 4 | `1` |
+| `Q`    | 4th in each group of 4 | `2` |
+| `QL`   | 1st in each group of 4 | `1` |
+| `QL`   | 2nd in each group of 4 | `3` |
+| `QL`   | 3rd in each group of 4 | `4` |
+| `QL`   | 4th in each group of 4 | `2` |
 
 ### Quadro Measurement Mode
 
@@ -142,19 +144,19 @@ Each group of four source points shares one MQ index. `Q` records rail, rail, pr
 
 | Source ID | Output suffix | Role |
 |-----------|---------------|------|
-| `Q01.001` | `03` | Rail point 1 |
-| `Q01.002` | `04` | Rail point 2 |
-| `Q01.003` | `01` | Prism point 1 |
-| `Q01.004` | `02` | Prism point 2 |
+| `Q01.001` | `3` | Rail point 1 |
+| `Q01.002` | `4` | Rail point 2 |
+| `Q01.003` | `1` | Prism point 1 |
+| `Q01.004` | `2` | Prism point 2 |
 
 `QL` records prism, rail, rail, prism:
 
 | Source ID | Output suffix | Role |
 |-----------|---------------|------|
-| `QL01.001` | `01` | Prism point 1 |
-| `QL01.002` | `03` | Rail point 1 |
-| `QL01.003` | `04` | Rail point 2 |
-| `QL01.004` | `02` | Prism point 2 |
+| `QL01.001` | `1` | Prism point 1 |
+| `QL01.002` | `3` | Rail point 1 |
+| `QL01.003` | `4` | Rail point 2 |
+| `QL01.004` | `2` | Prism point 2 |
 
 For Quadro prism points only, the tool subtracts `0.04 m` from the existing height field while preserving the original numeric formatting as much as possible.
 
@@ -232,7 +234,7 @@ Enable **Manual start by `<LfNr>`** for `.imes` / `.ipkt` files.
 | Field                      | Description |
 |----------------------------|-------------|
 | **Start `<LfNr>`**         | Row number in the master file, e.g. `22` or `000022` |
-| **Manual: New Point Name** | Exact target name, e.g. `3560.MQ01.03` |
+| **Manual: New Point Name** | Exact target name, e.g. `3560.MQ01.3` |
 
 The tool looks up the point ID at the given `<LfNr>` in the master, then renames exactly **that one point** across all session files.
 Useful for correcting individual points without running a full pattern session.

@@ -276,7 +276,7 @@ function processSingleFileMultiPattern(content, ext, sessions, options = {}) {
                     const mqString = pad2(manualOverride.mqIndex);
                     const newName = `${manualOverride.basePrefix}.MQ${mqString}.${suffixCode}`;
 
-                    if (suffixCode === '04' || suffixCode === '02') {
+                    if (suffixCode === '4' || suffixCode === '2') {
                         manualOverride.mqIndex++;
                     }
 

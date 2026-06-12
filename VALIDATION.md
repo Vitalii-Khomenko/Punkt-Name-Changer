@@ -14,12 +14,13 @@ python tests/run_validation.py
 
 | Case | Expected behavior |
 | --- | --- |
+| Single-digit output suffixes | Pattern output names end in `.1`, `.2`, `.3`, or `.4` without a leading zero in both split and single-file implementations. |
 | Gleis prefix normalization | The focused Python mini-script maps source pairs to every other MQ, uses consecutive MQs for `G101.19..36`, resumes every-other-MQ mapping after point 36, preserves fixed-width bytes, and leaves non-matching control points unchanged. |
 | Numeric Leica ID normalization | The Python preprocessor converts prism ID `101.1` to `P01.001`, maps EX points into four-point MQ groups while reserving MQ23, and preserves fixed-width bytes and CRLF endings. |
 | Partial `.ipkt` measurement with a source gap | `G01.001` starts at `MQ01`, while `G01.071` maps to `MQ36` when the configured start is `G01.001` / `MQ01`. |
 | Offset start point | If the configured start point is `G01.071` / `MQ01`, then `G01.071` maps to `MQ01` and `G01.078` maps to `MQ04`. |
-| Quadro mode | `Q01.001..Q01.004` maps to one MQ with suffixes `03`, `04`, `01`, `02`, and only the two prism positions receive the `-0.04 m` height offset. |
-| Quadro line mode | `QL01.001..QL01.004` maps to one MQ with suffixes `01`, `03`, `04`, `02`, and only the first and fourth prism positions receive the `-0.04 m` height offset. |
+| Quadro mode | `Q01.001..Q01.004` maps to one MQ with suffixes `3`, `4`, `1`, `2`, and only the two prism positions receive the `-0.04 m` height offset. |
+| Quadro line mode | `QL01.001..QL01.004` maps to one MQ with suffixes `1`, `3`, `4`, `2`, and only the first and fourth prism positions receive the `-0.04 m` height offset. |
 | Quadro skipped sections | Within one path such as `Q01` or `QL01`, indexes `037..040` map to `MQ10` and `045..048` map to `MQ12`, so skipped sections keep their real source-index-derived MQ positions. |
 | Split and single-file parity | Both implementations contain the source-pair MQ helper and session start-pair metadata. |
 | Single-file sync | The single-file CSS matches `css/style.css`, and split JS function definitions are represented in the single-file build. |

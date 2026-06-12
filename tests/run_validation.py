@@ -63,14 +63,14 @@ def parse_point_id(value: str) -> dict[str, object] | None:
 
 def suffix_code(parsed: dict[str, object]) -> str:
     if parsed["family"] == "Q":
-        return ["03", "04", "01", "02"][(int(parsed["index"]) - 1) % 4]
+        return ["3", "4", "1", "2"][(int(parsed["index"]) - 1) % 4]
     if parsed["family"] == "QL":
-        return ["01", "03", "04", "02"][(int(parsed["index"]) - 1) % 4]
+        return ["1", "3", "4", "2"][(int(parsed["index"]) - 1) % 4]
 
     is_odd = int(parsed["index"]) % 2 != 0
     if parsed["family"] == "P":
-        return "01" if is_odd else "02"
-    return "03" if is_odd else "04"
+        return "1" if is_odd else "2"
+    return "3" if is_odd else "4"
 
 
 def is_quadro_prism(parsed: dict[str, object]) -> bool:
@@ -437,11 +437,11 @@ class RenamingRegressionTests(unittest.TestCase):
         output, count = process_ipkt_pattern(content, session)
 
         self.assertEqual(count, 16)
-        self.assertIn("3560.MQ01.03", output)
-        self.assertIn("3560.MQ04.04", output)
-        self.assertIn("3560.MQ36.03", output)
-        self.assertIn("3560.MQ39.04", output)
-        self.assertNotIn("3560.MQ05.03", output)
+        self.assertIn("3560.MQ01.3", output)
+        self.assertIn("3560.MQ04.4", output)
+        self.assertIn("3560.MQ36.3", output)
+        self.assertIn("3560.MQ39.4", output)
+        self.assertNotIn("3560.MQ05.3", output)
         self.assertEqual(session["mqIndex"], 40)
 
     def test_offset_start_point_renumbers_from_configured_start_mq(self) -> None:
@@ -451,9 +451,9 @@ class RenamingRegressionTests(unittest.TestCase):
         output, count = process_ipkt_pattern(content, session)
 
         self.assertEqual(count, 8)
-        self.assertIn("3560.MQ01.03", output)
-        self.assertIn("3560.MQ04.04", output)
-        self.assertNotIn("3560.MQ36.03", output)
+        self.assertIn("3560.MQ01.3", output)
+        self.assertIn("3560.MQ04.4", output)
+        self.assertNotIn("3560.MQ36.3", output)
         self.assertEqual(session["mqIndex"], 5)
 
     def test_quadro_pattern_maps_four_measurements_to_one_mq_and_offsets_prisms(self) -> None:
@@ -463,10 +463,10 @@ class RenamingRegressionTests(unittest.TestCase):
         output, count = process_ipkt_pattern(content, session)
 
         self.assertEqual(count, 4)
-        self.assertIn("3560.MQ01.03", output)
-        self.assertIn("3560.MQ01.04", output)
-        self.assertIn("3560.MQ01.01", output)
-        self.assertIn("3560.MQ01.02", output)
+        self.assertIn("3560.MQ01.3", output)
+        self.assertIn("3560.MQ01.4", output)
+        self.assertIn("3560.MQ01.1", output)
+        self.assertIn("3560.MQ01.2", output)
         self.assertEqual(output.count("82.96000"), 2)
         self.assertEqual(output.count("83.00000"), 2)
         self.assertEqual(session["mqIndex"], 2)
@@ -482,12 +482,12 @@ class RenamingRegressionTests(unittest.TestCase):
         output, count = process_ipkt_pattern(content, session)
 
         self.assertEqual(count, len(indexes))
-        self.assertIn("3560.MQ01.03", output)
-        self.assertIn("3560.MQ02.02", output)
-        self.assertIn("3560.MQ10.03", output)
-        self.assertIn("3560.MQ10.02", output)
-        self.assertIn("3560.MQ12.03", output)
-        self.assertIn("3560.MQ12.02", output)
+        self.assertIn("3560.MQ01.3", output)
+        self.assertIn("3560.MQ02.2", output)
+        self.assertIn("3560.MQ10.3", output)
+        self.assertIn("3560.MQ10.2", output)
+        self.assertIn("3560.MQ12.3", output)
+        self.assertIn("3560.MQ12.2", output)
         self.assertEqual(session["mqIndex"], 13)
 
     def test_ql_mode_maps_prism_rail_rail_prism_order_and_offsets_prisms(self) -> None:
@@ -497,10 +497,10 @@ class RenamingRegressionTests(unittest.TestCase):
         output, count = process_ipkt_pattern(content, session)
 
         self.assertEqual(count, 4)
-        self.assertIn("3560.MQ01.01", output)
-        self.assertIn("3560.MQ01.03", output)
-        self.assertIn("3560.MQ01.04", output)
-        self.assertIn("3560.MQ01.02", output)
+        self.assertIn("3560.MQ01.1", output)
+        self.assertIn("3560.MQ01.3", output)
+        self.assertIn("3560.MQ01.4", output)
+        self.assertIn("3560.MQ01.2", output)
         self.assertEqual(output.count("82.96000"), 2)
         self.assertEqual(output.count("83.00000"), 2)
         self.assertEqual(session["mqIndex"], 2)
@@ -513,41 +513,58 @@ class RenamingRegressionTests(unittest.TestCase):
         output, count = process_ipkt_pattern(content, session)
 
         self.assertEqual(count, len(indexes))
-        self.assertIn("3560.MQ01.01", output)
-        self.assertIn("3560.MQ02.02", output)
-        self.assertIn("3560.MQ10.01", output)
-        self.assertIn("3560.MQ10.02", output)
-        self.assertIn("3560.MQ12.01", output)
-        self.assertIn("3560.MQ12.02", output)
+        self.assertIn("3560.MQ01.1", output)
+        self.assertIn("3560.MQ02.2", output)
+        self.assertIn("3560.MQ10.1", output)
+        self.assertIn("3560.MQ10.2", output)
+        self.assertIn("3560.MQ12.1", output)
+        self.assertIn("3560.MQ12.2", output)
         self.assertEqual(session["mqIndex"], 13)
 
     def test_coordinate_safety_skips_mismatches_across_supported_formats(self) -> None:
         master = {"G01.001": (2600001.0, 5700001.0)}
 
         ipkt = make_ipkt_line(1, "G01.001").replace("2600001.00000", "2600010.00000")
-        output, count = process_single_point_rename(ipkt, "ipkt", "G01.001", "3560.MQ01.03", master)
+        output, count = process_single_point_rename(ipkt, "ipkt", "G01.001", "3560.MQ01.3", master)
         self.assertEqual(count, 0)
         self.assertIn("G01.001", output)
-        self.assertNotIn("3560.MQ01.03", output)
+        self.assertNotIn("3560.MQ01.3", output)
 
         iroh = "PID:             G01.001|Y:2600010.000|X:5700001.000|CLS:MEAS|"
-        output, count = process_single_point_rename(iroh, "iroh", "G01.001", "3560.MQ01.03", master)
+        output, count = process_single_point_rename(iroh, "iroh", "G01.001", "3560.MQ01.3", master)
         self.assertEqual(count, 0)
         self.assertIn("G01.001", output)
-        self.assertNotIn("3560.MQ01.03", output)
+        self.assertNotIn("3560.MQ01.3", output)
 
         lqp = "G01.001 100.000 100.000 1.0"
-        output, count = process_single_point_rename(lqp, "lqp", "G01.001", "3560.MQ01.03", {})
+        output, count = process_single_point_rename(lqp, "lqp", "G01.001", "3560.MQ01.3", {})
         self.assertEqual(count, 0)
         self.assertIn("G01.001", output)
 
         lqp_non_measurement = "G01.001 401.000 100.000 1.0"
-        output, count = process_single_point_rename(lqp_non_measurement, "lqp", "G01.001", "3560.MQ01.03", master)
+        output, count = process_single_point_rename(lqp_non_measurement, "lqp", "G01.001", "3560.MQ01.3", master)
         self.assertEqual(count, 0)
         self.assertIn("G01.001", output)
 
 
 class ProjectInvariantTests(unittest.TestCase):
+    def test_split_and_single_file_use_single_digit_output_suffixes(self) -> None:
+        utils = (ROOT / "js" / "utils.js").read_text(encoding="utf-8")
+        renamer = RENAMER_PATH.read_text(encoding="utf-8")
+        html = HTML_PATH.read_text(encoding="utf-8")
+
+        for source in [utils, html]:
+            self.assertIn("return ['3', '4', '1', '2'][position]", source)
+            self.assertIn("return ['1', '3', '4', '2'][position]", source)
+            self.assertIn("return isOdd ? '1' : '2'", source)
+            self.assertIn("return isOdd ? '3' : '4'", source)
+            self.assertNotIn("return ['03', '04', '01', '02'][position]", source)
+            self.assertNotIn("return ['01', '03', '04', '02'][position]", source)
+
+        for source in [renamer, html]:
+            self.assertIn("suffixCode === '4' || suffixCode === '2'", source)
+            self.assertNotIn("suffixCode === '04' || suffixCode === '02'", source)
+
     def test_required_project_files_exist(self) -> None:
         paths = [
             HTML_PATH,

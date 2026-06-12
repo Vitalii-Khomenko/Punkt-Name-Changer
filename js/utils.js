@@ -40,18 +40,18 @@ function getSuffixCodeFromPointId(parsedPointId) {
     if (!parsedPointId) return null;
     if (parsedPointId.family === 'Q') {
         const position = (parsedPointId.index - 1) % 4;
-        return ['03', '04', '01', '02'][position];
+        return ['3', '4', '1', '2'][position];
     }
     if (parsedPointId.family === 'QL') {
         const position = (parsedPointId.index - 1) % 4;
-        return ['01', '03', '04', '02'][position];
+        return ['1', '3', '4', '2'][position];
     }
 
     const isOdd = parsedPointId.index % 2 !== 0;
     if (parsedPointId.family === 'P') {
-        return isOdd ? '01' : '02';
+        return isOdd ? '1' : '2';
     }
-    return isOdd ? '03' : '04';
+    return isOdd ? '3' : '4';
 }
 
 function isQuadroPrismPoint(parsedPointId) {

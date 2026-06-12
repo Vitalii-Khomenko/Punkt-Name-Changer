@@ -89,7 +89,7 @@ Enabled by the **Manual start by `<LfNr>`** checkbox. Requires `.imes` or `.ipkt
 
 User provides:
 - **Start `<LfNr>`** — row number in the master (e.g. `22` or `000022`)
-- **Manual: New Point Name** — exact target name (e.g. `3560.MQ01.03`)
+- **Manual: New Point Name** — exact target name (e.g. `3560.MQ01.3`)
 
 The tool:
 1. Looks up the point ID at the given `<LfNr>` in the master.
@@ -106,18 +106,18 @@ Useful for correcting individual points in an already-processed session without 
 
 | Family | Index parity | SuffixCode |
 |--------|-------------|------------|
-| `P`    | Odd         | `01`       |
-| `P`    | Even        | `02`       |
-| `G`    | Odd         | `03`       |
-| `G`    | Even        | `04`       |
-| `Q`    | 1st in group of 4 | `03` |
-| `Q`    | 2nd in group of 4 | `04` |
-| `Q`    | 3rd in group of 4 | `01` |
-| `Q`    | 4th in group of 4 | `02` |
-| `QL`   | 1st in group of 4 | `01` |
-| `QL`   | 2nd in group of 4 | `03` |
-| `QL`   | 3rd in group of 4 | `04` |
-| `QL`   | 4th in group of 4 | `02` |
+| `P`    | Odd         | `1`       |
+| `P`    | Even        | `2`       |
+| `G`    | Odd         | `3`       |
+| `G`    | Even        | `4`       |
+| `Q`    | 1st in group of 4 | `3` |
+| `Q`    | 2nd in group of 4 | `4` |
+| `Q`    | 3rd in group of 4 | `1` |
+| `Q`    | 4th in group of 4 | `2` |
+| `QL`   | 1st in group of 4 | `1` |
+| `QL`   | 2nd in group of 4 | `3` |
+| `QL`   | 3rd in group of 4 | `4` |
+| `QL`   | 4th in group of 4 | `2` |
 
 Quadro mode uses four source points per MQ. `Q` records rail, rail, prism, prism. `QL` records prism, rail, rail, prism. Only the Quadro prism positions receive a `-0.04 m` height offset during rename.
 
