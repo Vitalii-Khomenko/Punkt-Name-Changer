@@ -54,8 +54,20 @@ python scripts/normalize_leica_point_ids.py 20260612_YXZ.ipkt
 ```
 
 This writes `20260612_YXZ_normalized.ipkt`. It converts `101.1` through
-`101.998` into `G01.001` through `G01.998`. IDs with extra sections, such as
-`101.EX.01`, remain unchanged.
+`101.998` into `G01.001` through `G01.998`. It also converts the `101.EX.NN`
+series into groups of four, starting at MQ 19:
+
+| Source IDs | Normalized IDs |
+| --- | --- |
+| `101.EX.01..04` | `101.MQ19-1..4` |
+| `101.EX.05..08` | `101.MQ20-1..4` |
+| `101.EX.09..12` | `101.MQ21-1..4` |
+
+Set another EX starting MQ when needed:
+
+```bash
+python scripts/normalize_leica_point_ids.py input.ipkt --ex-start-mq 25
+```
 
 Use explicit mappings for other numeric series:
 

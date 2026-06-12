@@ -16,14 +16,17 @@ def normalize_pipe_content(
     content: bytes,
     source_prefix: str = "101",
     target_pattern: str = "G01",
-) -> tuple[bytes, int]:
-    """Replace simple numeric IDs in Leica pipe records without reformatting."""
+    ex_start_mq: int = 19,
+) -> tuple[bytes, int, int]:
+    """Replace numeric and EX IDs in Leica pipe records without reformatting."""
     source_prefix_bytes = source_prefix.encode("ascii")
     target_pattern_bytes = target_pattern.upper().encode("ascii")
     source_id_re = re.compile(rb"^" + re.escape(source_prefix_bytes) + rb"\.(\d{1,3})$")
+    ex_id_re = re.compile(rb"^" + re.escape(source_prefix_bytes) + rb"\.EX\.(\d{1,3})$")
 
     normalized_lines: list[bytes] = []
-    replacement_count = 0
+    numeric_replacement_count = 0
+    ex_replacement_count = 0
 
     for line in content.splitlines(keepends=True):
         yxz_index = line.find(b"|YXZ|")
@@ -37,17 +40,35 @@ def normalize_pipe_content(
             continue
 
         original_field = line[last_pipe_index + 1 : yxz_index]
-        match = source_id_re.fullmatch(original_field.strip())
-        if not match:
+        point_id = original_field.strip()
+        numeric_match = source_id_re.fullmatch(point_id)
+        ex_match = ex_id_re.fullmatch(point_id)
+        if not numeric_match and not ex_match:
             normalized_lines.append(line)
             continue
 
+        match = numeric_match or ex_match
+        assert match is not None
         index = int(match.group(1))
         if index < 1 or index > 998:
             normalized_lines.append(line)
             continue
 
-        new_id = target_pattern_bytes + b"." + f"{index:03d}".encode("ascii")
+        if numeric_match:
+            new_id = target_pattern_bytes + b"." + f"{index:03d}".encode("ascii")
+            numeric_replacement_count += 1
+        else:
+            mq_index = ex_start_mq + (index - 1) // 4
+            group_position = (index - 1) % 4 + 1
+            new_id = (
+                source_prefix_bytes
+                + b".MQ"
+                + str(mq_index).encode("ascii")
+                + b"-"
+                + str(group_position).encode("ascii")
+            )
+            ex_replacement_count += 1
+
         if len(new_id) > len(original_field):
             raise ValueError(
                 f"Point ID {new_id.decode('ascii')} does not fit the "
@@ -57,9 +78,8 @@ def normalize_pipe_content(
         new_field = new_id.rjust(len(original_field), b" ")
         line = line[: last_pipe_index + 1] + new_field + line[yxz_index:]
         normalized_lines.append(line)
-        replacement_count += 1
 
-    return b"".join(normalized_lines), replacement_count
+    return b"".join(normalized_lines), numeric_replacement_count, ex_replacement_count
 
 
 def default_output_path(input_path: Path) -> Path:
@@ -91,6 +111,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Target PunktNameChanger family and path. Default: G01.",
     )
     parser.add_argument(
+        "--ex-start-mq",
+        type=int,
+        default=19,
+        help="Starting MQ number for source-prefix.EX.01 groups. Default: 19.",
+    )
+    parser.add_argument(
         "--in-place",
         action="store_true",
         help="Replace the input file and create a .bak backup.",
@@ -106,6 +132,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--output and --in-place cannot be used together.")
     if not re.fullmatch(r"\d+", args.source_prefix):
         parser.error("--source-prefix must contain digits only.")
+    if args.ex_start_mq < 1:
+        parser.error("--ex-start-mq must be at least 1.")
     args.target_pattern = args.target_pattern.upper()
     if not TARGET_PATTERN_RE.fullmatch(args.target_pattern):
         parser.error(
@@ -142,10 +170,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     original = input_path.read_bytes()
-    normalized, replacement_count = normalize_pipe_content(
+    normalized, numeric_replacement_count, ex_replacement_count = normalize_pipe_content(
         original,
         source_prefix=args.source_prefix,
         target_pattern=args.target_pattern,
+        ex_start_mq=args.ex_start_mq,
     )
 
     if args.in_place:
@@ -153,8 +182,12 @@ def main(argv: list[str] | None = None) -> int:
     output_path.write_bytes(normalized)
 
     print(
-        f"Normalized {replacement_count} point IDs: "
+        f"Normalized {numeric_replacement_count} numeric point IDs: "
         f"{args.source_prefix}.N -> {args.target_pattern}.NNN"
+    )
+    print(
+        f"Normalized {ex_replacement_count} EX point IDs: "
+        f"{args.source_prefix}.EX.NN -> {args.source_prefix}.MQ{args.ex_start_mq}-1..4 groups"
     )
     print(f"Output: {output_path}")
     if args.in_place:
