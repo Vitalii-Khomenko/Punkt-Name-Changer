@@ -362,10 +362,10 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertEqual(len(source), len(normalized))
         self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
         self.assertIn(b"                  T1|YXZ| 1.00000| 2.00000|", normalized)
-        self.assertIn(b"              G01.01|YXZ| 3.00000| 4.00000|", normalized)
-        self.assertIn(b"              G01.54|YXZ| 5.00000| 6.00000|", normalized)
+        self.assertIn(b"             G01.001|YXZ| 3.00000| 4.00000|", normalized)
+        self.assertIn(b"             G01.054|YXZ| 5.00000| 6.00000|", normalized)
         self.assertNotIn(b"G101.", normalized)
-        self.assertIn("Replaced 2 point IDs", result.stdout)
+        self.assertIn("Replaced 2 point IDs: G101.N -> G01.NNN", result.stdout)
 
     def test_numeric_ipkt_normalizer_preserves_layout_and_groups_ex_ids(self) -> None:
         source = (

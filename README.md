@@ -84,16 +84,16 @@ creates an adjacent `.bak` backup before writing.
 
 ### Gleis Prefix Mini-Script
 
-For Gleis files that already have the correct two-digit point suffix but use
-the wrong prefix, use the separate focused mini-script:
+For Gleis files that use IDs such as `G101.01`, use the separate focused
+mini-script:
 
 ```bash
 python scripts/normalize_gleis_point_prefix.py "20260612_YXZ_Gleis 101_Gleisaufnahme.ipkt"
 ```
 
-By default, it converts `G101.01` through `G101.N` into `G01.01` through
-`G01.N`. It preserves the suffix exactly and leaves other points such as
-`T1..T4` unchanged.
+By default, it converts `G101.01` through `G101.N` into the project format
+`G01.001` through `G01.NNN`. It leaves other points such as `T1..T4`
+unchanged.
 
 ---
 

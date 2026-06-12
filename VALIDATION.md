@@ -14,7 +14,7 @@ python tests/run_validation.py
 
 | Case | Expected behavior |
 | --- | --- |
-| Gleis prefix normalization | The focused Python mini-script converts `G101.01` to `G01.01`, preserves the two-digit suffix and fixed-width bytes, and leaves non-matching control points unchanged. |
+| Gleis prefix normalization | The focused Python mini-script converts `G101.01` to `G01.001`, preserves fixed-width bytes, and leaves non-matching control points unchanged. |
 | Numeric Leica ID normalization | The Python preprocessor converts prism ID `101.1` to `P01.001`, maps EX points into four-point MQ groups while reserving MQ23, and preserves fixed-width bytes and CRLF endings. |
 | Partial `.ipkt` measurement with a source gap | `G01.001` starts at `MQ01`, while `G01.071` maps to `MQ36` when the configured start is `G01.001` / `MQ01`. |
 | Offset start point | If the configured start point is `G01.071` / `MQ01`, then `G01.071` maps to `MQ01` and `G01.078` maps to `MQ04`. |

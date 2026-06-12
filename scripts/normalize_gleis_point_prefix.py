@@ -1,4 +1,4 @@
-"""Replace a Gleis Leica point prefix without changing point suffixes."""
+"""Normalize Gleis Leica point IDs into three-digit dot format."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def replace_pipe_point_prefix(
     source_prefix: str = "G101",
     target_prefix: str = "G01",
 ) -> tuple[bytes, int]:
-    """Replace matching point prefixes while preserving all other bytes."""
+    """Replace matching prefixes and normalize numeric suffixes to three digits."""
     source_prefix_bytes = source_prefix.encode("ascii")
     target_prefix_bytes = target_prefix.encode("ascii")
     point_id_re = re.compile(
@@ -43,7 +43,12 @@ def replace_pipe_point_prefix(
             output_lines.append(line)
             continue
 
-        new_id = target_prefix_bytes + match.group(1)
+        suffix_index = int(match.group(1)[1:])
+        if suffix_index < 1 or suffix_index > 998:
+            output_lines.append(line)
+            continue
+
+        new_id = target_prefix_bytes + b"." + f"{suffix_index:03d}".encode("ascii")
         if len(new_id) > len(original_field):
             raise ValueError(
                 f"Point ID {new_id.decode('ascii')} does not fit the "
@@ -65,7 +70,7 @@ def default_output_path(input_path: Path) -> Path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Replace G101.NN Leica point IDs with G01.NN."
+        description="Replace G101.N Leica point IDs with G01.NNN."
     )
     parser.add_argument("input", type=Path, help="Input .imes or .ipkt file.")
     parser.add_argument(
@@ -122,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"Replaced {replacement_count} point IDs: "
-        f"{args.source_prefix}.N -> {args.target_prefix}.N"
+        f"{args.source_prefix}.N -> {args.target_prefix}.NNN"
     )
     print(f"Output: {output_path}")
     return 0
