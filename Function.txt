@@ -19,6 +19,9 @@ Core behavior:
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of
   four such as `101.MQ19-1..4`, with a configurable starting MQ and MQ23
   reserved from the EX sequence.
+- The separate `scripts/normalize_gleis_point_prefix.py` mini-script converts
+  Gleis IDs such as `G101.01` into `G01.01` while preserving the suffix and
+  fixed-width pipe-file layout.
 - Supported point IDs use dot format only: `G01.001..G10.998`,
   `P01.001..P10.998`, `Q01.001..Q10.998`, and
   `QL01.001..QL10.998`.

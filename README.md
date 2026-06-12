@@ -82,6 +82,19 @@ python scripts/normalize_leica_point_ids.py input.ipkt --source-prefix 205 --tar
 Use `--in-place` only when the original file should be replaced. In-place mode
 creates an adjacent `.bak` backup before writing.
 
+### Gleis Prefix Mini-Script
+
+For Gleis files that already have the correct two-digit point suffix but use
+the wrong prefix, use the separate focused mini-script:
+
+```bash
+python scripts/normalize_gleis_point_prefix.py "20260612_YXZ_Gleis 101_Gleisaufnahme.ipkt"
+```
+
+By default, it converts `G101.01` through `G101.N` into `G01.01` through
+`G01.N`. It preserves the suffix exactly and leaves other points such as
+`T1..T4` unchanged.
+
 ---
 
 ## Output Name Format

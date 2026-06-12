@@ -27,6 +27,7 @@ LICENSE_PATH = ROOT / "LICENSE"
 SECURITY_PATH = ROOT / "SECURITY.md"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
 NORMALIZE_SCRIPT_PATH = ROOT / "scripts" / "normalize_leica_point_ids.py"
+GLEIS_PREFIX_SCRIPT_PATH = ROOT / "scripts" / "normalize_gleis_point_prefix.py"
 GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
@@ -330,6 +331,42 @@ def make_ql_session(start_index: int, start_mq: int, limit: int) -> dict[str, ob
 
 
 class RenamingRegressionTests(unittest.TestCase):
+    def test_gleis_prefix_normalizer_preserves_suffix_and_layout(self) -> None:
+        source = (
+            b"# header with non-UTF8: \x84\r\n"
+            b" 000001|  |      |  |      |      |                  T1|YXZ| 1.00000| 2.00000|\r\n"
+            b" 000002|  |      |  |      |      |             G101.01|YXZ| 3.00000| 4.00000|\r\n"
+            b" 000003|  |      |  |      |      |             G101.54|YXZ| 5.00000| 6.00000|\r\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "gleis.ipkt"
+            output_path = Path(temp_dir) / "gleis_normalized.ipkt"
+            input_path.write_bytes(source)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(GLEIS_PREFIX_SCRIPT_PATH),
+                    str(input_path),
+                    "--output",
+                    str(output_path),
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            normalized = output_path.read_bytes()
+
+        self.assertEqual(len(source), len(normalized))
+        self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
+        self.assertIn(b"                  T1|YXZ| 1.00000| 2.00000|", normalized)
+        self.assertIn(b"              G01.01|YXZ| 3.00000| 4.00000|", normalized)
+        self.assertIn(b"              G01.54|YXZ| 5.00000| 6.00000|", normalized)
+        self.assertNotIn(b"G101.", normalized)
+        self.assertIn("Replaced 2 point IDs", result.stdout)
+
     def test_numeric_ipkt_normalizer_preserves_layout_and_groups_ex_ids(self) -> None:
         source = (
             b"# header with non-UTF8: \x84\r\n"
@@ -507,6 +544,7 @@ class ProjectInvariantTests(unittest.TestCase):
             SECURITY_PATH,
             BUILD_SCRIPT_PATH,
             NORMALIZE_SCRIPT_PATH,
+            GLEIS_PREFIX_SCRIPT_PATH,
             RENAMER_PATH,
             MAIN_PATH,
         ]
