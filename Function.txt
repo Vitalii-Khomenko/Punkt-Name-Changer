@@ -8,6 +8,7 @@ Source of truth:
 
 - Single-file mobile app: `Punkt-Name-Changer.html`
 - Standalone duplicate diagnostic: `IPKT-Coordinate-Duplicate-Checker.html`
+- Standalone arbitrary-group renamer: `IPKT-Group-Path-Renamer.html`
 - Split implementation: `js/utils.js`, `js/parsers.js`, `js/renamer.js`, `js/main.js`
 - Regression tests: `tests/run_validation.py`
 - Security and deployment guidance: `SECURITY.md`
@@ -20,6 +21,13 @@ Core behavior:
   component, groups identical or probable near-duplicate matches, displays
   point IDs and source line references, and exports a TXT report without
   modifying or uploading the source file.
+- The standalone IPKT group path renamer discovers arbitrary point families by
+  their final numeric index, lets each family be configured as `P`, `G`, `Q`,
+  or `QL`, and exports both normalized path IDs and final MQ names using the
+  existing source-index-based MQ and suffix rules. It replaces only raw ASCII
+  point-field bytes so all other source bytes and fixed-width alignment remain
+  unchanged. Direct final-MQ output applies the existing `-0.04 m` Q/QL prism
+  height correction.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of

@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "Punkt-Name-Changer.html"
 DUPLICATE_CHECKER_PATH = ROOT / "IPKT-Coordinate-Duplicate-Checker.html"
+GROUP_PATH_RENAMER_PATH = ROOT / "IPKT-Group-Path-Renamer.html"
 README_PATH = ROOT / "README.md"
 MISSION_PATH = ROOT / "Mission.md"
 FUNCTIONS_PATH = ROOT / "Function.txt"
@@ -622,6 +623,7 @@ class ProjectInvariantTests(unittest.TestCase):
         paths = [
             HTML_PATH,
             DUPLICATE_CHECKER_PATH,
+            GROUP_PATH_RENAMER_PATH,
             README_PATH,
             MISSION_PATH,
             FUNCTIONS_PATH,
@@ -660,6 +662,30 @@ class ProjectInvariantTests(unittest.TestCase):
         self.assertNotRegex(checker, r'<script\s+src=')
         self.assertNotRegex(checker, r'<link[^>]+href=')
         self.assertIsNone(CYRILLIC_RE.search(checker))
+
+    def test_ipkt_group_path_renamer_is_self_contained_and_preserves_source_index_logic(self) -> None:
+        renamer = GROUP_PATH_RENAMER_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("IPKT Group Path Renamer", renamer)
+        self.assertIn('accept=".ipkt"', renamer)
+        self.assertIn("function parseSourcePointId", renamer)
+        self.assertIn("function parseIpktBytes", renamer)
+        self.assertIn("function getMqIndex", renamer)
+        self.assertIn("function getSuffix", renamer)
+        self.assertIn("function isQuadroPrism", renamer)
+        self.assertIn("function replaceFields", renamer)
+        self.assertIn("function applyQuadroHeightOffsets", renamer)
+        self.assertIn("function buildReport", renamer)
+        self.assertIn("normalizedBytes: replaceFields", renamer)
+        self.assertIn("Download Normalized IPKT", renamer)
+        self.assertIn("Math.floor((sourceIndex - 1) / size)", renamer)
+        self.assertIn("output.fill(32, record.fieldStart, record.fieldEnd)", renamer)
+        self.assertIn("connect-src 'none'", renamer)
+        self.assertIn("object-src 'none'", renamer)
+        self.assertIn("never uploaded", renamer)
+        self.assertNotRegex(renamer, r'<script\s+src=')
+        self.assertNotRegex(renamer, r'<link[^>]+href=')
+        self.assertIsNone(CYRILLIC_RE.search(renamer))
 
     def test_project_text_files_do_not_contain_cyrillic(self) -> None:
         for path in [README_PATH, MISSION_PATH, FUNCTIONS_PATH, RULES_PATH, AGENTS_PATH, VALIDATION_PATH]:

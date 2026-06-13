@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>IPKT Group Path Renamer</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #eef3f7;
+            --card: #ffffff;
+            --ink: #183044;
+            --muted: #607485;
+            --accent: #176b87;
+            --accent-dark: #0f5067;
+            --line: #cbd7df;
+            --error: #a52121;
+            --success: #176b3a;
+            --shadow: 0 12px 32px rgba(30, 52, 70, 0.12);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: linear-gradient(145deg, #e5edf3, var(--bg));
+            color: var(--ink);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        main { width: min(1180px, calc(100% - 24px)); margin: 24px auto 48px; }
+        h1, h2 { margin: 0 0 12px; }
+        .lead { color: var(--muted); line-height: 1.55; }
+        .card {
+            margin-top: 18px;
+            padding: 18px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--card);
+            box-shadow: var(--shadow);
+        }
+        .hidden { display: none; }
+        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        label { display: block; margin-bottom: 6px; font-weight: 700; }
+        input, select, button {
+            width: 100%;
+            min-height: 44px;
+            border: 1px solid #aebec9;
+            border-radius: 9px;
+            background: #fff;
+            color: var(--ink);
+            font: inherit;
+        }
+        input, select { padding: 9px 10px; }
+        input[type="checkbox"] { width: 22px; min-height: 22px; accent-color: var(--accent); }
+        button {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 800;
+        }
+        button:hover { background: var(--accent-dark); }
+        button.secondary { background: #fff; color: var(--accent-dark); }
+        button:disabled { cursor: not-allowed; opacity: 0.55; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+        .actions button { width: auto; min-width: 180px; padding: 9px 16px; }
+        .help, .status { color: var(--muted); line-height: 1.45; }
+        .status.error { color: var(--error); font-weight: 700; }
+        .status.success { color: var(--success); font-weight: 700; }
+        .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+        .summary div { padding: 12px; border-radius: 10px; background: #edf5f8; }
+        .summary strong, .summary span { display: block; }
+        .summary span { margin-top: 4px; color: var(--muted); font-size: 0.88rem; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; min-width: 1050px; border-collapse: collapse; }
+        th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+        th { background: #edf5f8; font-size: 0.88rem; }
+        td input, td select { min-width: 86px; }
+        td .base-prefix { min-width: 120px; }
+        .source { min-width: 170px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .preview { color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.86rem; }
+        .warning-list { margin: 10px 0 0; color: var(--error); }
+
+        @media (max-width: 760px) {
+            main { margin-top: 12px; }
+            .grid, .summary { grid-template-columns: 1fr; }
+            .actions button { width: 100%; }
+            .card { padding: 14px; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>IPKT Group Path Renamer</h1>
+    <p class="lead">
+        Open one Leica IPKT file, discover point groups from their source IDs, map each group to a measurement type and path,
+        then export final MQ point names. The file stays local in this browser tab and is never uploaded.
+    </p>
+
+    <section class="card">
+        <h2>1. Load IPKT File</h2>
+        <div class="grid">
+            <div>
+                <label for="ipktFile">IPKT file</label>
+                <input id="ipktFile" type="file" accept=".ipkt">
+                <p class="help">Maximum file size: 10 MB. Only records containing <code>|YXZ|</code> are analyzed.</p>
+            </div>
+            <div>
+                <label for="defaultBasePrefix">Default final base prefix</label>
+                <input id="defaultBasePrefix" type="text" placeholder="e.g. 3560" autocomplete="off" spellcheck="false">
+                <p class="help">Applied to every discovered group when you press Apply Default Prefix.</p>
+            </div>
+        </div>
+        <div class="actions">
+            <button id="analyzeButton" type="button">Discover Point Groups</button>
+            <button id="applyPrefixButton" class="secondary" type="button" disabled>Apply Default Prefix</button>
+            <button id="clearButton" class="secondary" type="button">Clear</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite">Select an IPKT file to begin.</p>
+    </section>
+
+    <section id="summaryCard" class="card hidden">
+        <h2>2. Configure Groups</h2>
+        <div class="summary">
+            <div><strong id="summaryFile">-</strong><span>File</span></div>
+            <div><strong id="summaryRecords">0</strong><span>Numeric point records</span></div>
+            <div><strong id="summaryGroups">0</strong><span>Discovered groups</span></div>
+            <div><strong id="summarySkipped">0</strong><span>Skipped YXZ records</span></div>
+        </div>
+        <p class="help">
+            MQ numbering is based on the original source index. Skipped source ranges therefore keep their real MQ positions.
+            P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
+            Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Use</th>
+                    <th>Source group</th>
+                    <th>Found</th>
+                    <th>Type</th>
+                    <th>Path</th>
+                    <th>Final base prefix</th>
+                    <th>Start MQ</th>
+                    <th>Start source index</th>
+                    <th>Preview</th>
+                </tr>
+                </thead>
+                <tbody id="groupsBody"></tbody>
+            </table>
+        </div>
+        <div class="actions">
+            <button id="renameButton" type="button">Build Renamed IPKT</button>
+        </div>
+        <ul id="warnings" class="warning-list"></ul>
+    </section>
+
+    <section id="exportCard" class="card hidden">
+        <h2>3. Export</h2>
+        <p id="exportSummary" class="status success"></p>
+        <div class="actions">
+            <button id="downloadNormalizedButton" class="secondary" type="button">Download Normalized IPKT</button>
+            <button id="downloadIpktButton" type="button">Download Renamed IPKT</button>
+            <button id="downloadReportButton" class="secondary" type="button">Download TXT Report</button>
+        </div>
+    </section>
+</main>
+
+<script>
+    'use strict';
+
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+    const SAFE_NAME_COMPONENT_PATTERN = /^[A-Za-z0-9._-]+$/;
+    const ASCII = new TextEncoder();
+    const fileInput = document.getElementById('ipktFile');
+    const analyzeButton = document.getElementById('analyzeButton');
+    const applyPrefixButton = document.getElementById('applyPrefixButton');
+    const clearButton = document.getElementById('clearButton');
+    const renameButton = document.getElementById('renameButton');
+    const statusElement = document.getElementById('status');
+    const summaryCard = document.getElementById('summaryCard');
+    const exportCard = document.getElementById('exportCard');
+    const groupsBody = document.getElementById('groupsBody');
+    const warningsElement = document.getElementById('warnings');
+
+    let sourceFile = null;
+    let sourceBytes = null;
+    let discoveredGroups = [];
+    let latestOutput = null;
+
+    function setStatus(message, kind = '') {
+        statusElement.textContent = message;
+        statusElement.className = `status ${kind}`.trim();
+    }
+
+    function bytesToAscii(bytes) {
+        let text = '';
+        for (let index = 0; index < bytes.length; index += 1) {
+            text += String.fromCharCode(bytes[index]);
+        }
+        return text;
+    }
+
+    function findSequence(bytes, sequence, start = 0, end = bytes.length) {
+        outer: for (let index = start; index <= end - sequence.length; index += 1) {
+            for (let offset = 0; offset < sequence.length; offset += 1) {
+                if (bytes[index + offset] !== sequence[offset]) continue outer;
+            }
+            return index;
+        }
+        return -1;
+    }
+
+    function findLastByte(bytes, value, start, end) {
+        for (let index = end - 1; index >= start; index -= 1) {
+            if (bytes[index] === value) return index;
+        }
+        return -1;
+    }
+
+    function findByte(bytes, value, start, end) {
+        for (let index = start; index < end; index += 1) {
+            if (bytes[index] === value) return index;
+        }
+        return -1;
+    }
+
+    function trimAsciiField(bytes, start, end) {
+        while (start < end && (bytes[start] === 32 || bytes[start] === 9)) start += 1;
+        while (end > start && (bytes[end - 1] === 32 || bytes[end - 1] === 9 || bytes[end - 1] === 13)) end -= 1;
+        return bytesToAscii(bytes.subarray(start, end));
+    }
+
+    function parseSourcePointId(pointId) {
+        const match = String(pointId).match(/^(.*)\.(\d{1,3})$/);
+        if (!match) return null;
+        const sourceGroup = match[1];
+        const sourceIndex = Number.parseInt(match[2], 10);
+        if (!sourceGroup || !Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > 998) return null;
+        return { sourceGroup, sourceIndex };
+    }
+
+    function parseIpktBytes(bytes) {
+        const records = [];
+        const groupsByName = new Map();
+        let skippedRecords = 0;
+        const yxzMarker = ASCII.encode('|YXZ|');
+        let lineStart = 0;
+        let lineNumber = 1;
+
+        while (lineStart < bytes.length) {
+            let lineEnd = bytes.indexOf(10, lineStart);
+            if (lineEnd === -1) lineEnd = bytes.length;
+            const yxzIndex = findSequence(bytes, yxzMarker, lineStart, lineEnd);
+
+            if (yxzIndex !== -1) {
+                const pipeIndex = findLastByte(bytes, 124, lineStart, yxzIndex);
+                const pointId = pipeIndex === -1 ? '' : trimAsciiField(bytes, pipeIndex + 1, yxzIndex);
+                const parsed = parseSourcePointId(pointId);
+                if (!parsed) {
+                    skippedRecords += 1;
+                } else {
+                    const yEnd = findByte(bytes, 124, yxzIndex + yxzMarker.length, lineEnd);
+                    const xEnd = yEnd === -1 ? -1 : findByte(bytes, 124, yEnd + 1, lineEnd);
+                    const heightEnd = xEnd === -1 ? -1 : findByte(bytes, 124, xEnd + 1, lineEnd);
+                    const record = {
+                        ...parsed,
+                        pointId,
+                        lineNumber,
+                        fieldStart: pipeIndex + 1,
+                        fieldEnd: yxzIndex,
+                        fieldWidth: yxzIndex - pipeIndex - 1,
+                        heightStart: xEnd === -1 ? null : xEnd + 1,
+                        heightEnd: heightEnd === -1 ? null : heightEnd
+                    };
+                    records.push(record);
+                    if (!groupsByName.has(parsed.sourceGroup)) {
+                        groupsByName.set(parsed.sourceGroup, {
+                            sourceGroup: parsed.sourceGroup,
+                            count: 0,
+                            minIndex: parsed.sourceIndex,
+                            maxIndex: parsed.sourceIndex,
+                            records: []
+                        });
+                    }
+                    const group = groupsByName.get(parsed.sourceGroup);
+                    group.count += 1;
+                    group.minIndex = Math.min(group.minIndex, parsed.sourceIndex);
+                    group.maxIndex = Math.max(group.maxIndex, parsed.sourceIndex);
+                    group.records.push(record);
+                }
+            }
+
+            lineStart = lineEnd + 1;
+            lineNumber += 1;
+        }
+
+        return { records, groups: Array.from(groupsByName.values()), skippedRecords };
+    }
+
+    function pad2(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function pad3(value) {
+        return String(value).padStart(3, '0');
+    }
+
+    function getTypeSize(type) {
+        return type === 'Q' || type === 'QL' ? 4 : 2;
+    }
+
+    function getSuffix(type, sourceIndex) {
+        if (type === 'Q') return ['3', '4', '1', '2'][(sourceIndex - 1) % 4];
+        if (type === 'QL') return ['1', '3', '4', '2'][(sourceIndex - 1) % 4];
+        if (type === 'P') return sourceIndex % 2 === 1 ? '1' : '2';
+        return sourceIndex % 2 === 1 ? '3' : '4';
+    }
+
+    function isQuadroPrism(type, sourceIndex) {
+        const position = (sourceIndex - 1) % 4;
+        if (type === 'Q') return position >= 2;
+        if (type === 'QL') return position === 0 || position === 3;
+        return false;
+    }
+
+    function getMqIndex(type, sourceIndex, startSourceIndex, startMq) {
+        const size = getTypeSize(type);
+        return startMq + Math.floor((sourceIndex - 1) / size) - Math.floor((startSourceIndex - 1) / size);
+    }
+
+    function buildFinalName(config, sourceIndex) {
+        const mqIndex = getMqIndex(config.type, sourceIndex, config.startSourceIndex, config.startMq);
+        return `${config.basePrefix}.MQ${pad2(mqIndex)}.${getSuffix(config.type, sourceIndex)}`;
+    }
+
+    function buildNormalizedName(config, sourceIndex) {
+        return `${config.type}${pad2(config.pathNumber)}.${pad3(sourceIndex)}`;
+    }
+
+    function createCell(row, content) {
+        const cell = document.createElement('td');
+        if (content instanceof Node) cell.appendChild(content);
+        else cell.textContent = content;
+        row.appendChild(cell);
+        return cell;
+    }
+
+    function createInput(type, role, value, className = '') {
+        const input = document.createElement('input');
+        input.type = type;
+        input.dataset.role = role;
+        input.value = value;
+        input.className = className;
+        return input;
+    }
+
+    function updateRowPreview(row) {
+        const config = getRowConfig(row);
+        const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+        const preview = row.querySelector('[data-role="preview"]');
+        if (!config || !group) {
+            preview.textContent = 'Complete configuration';
+            return;
+        }
+        const firstIndex = group.minIndex;
+        preview.textContent = `${buildNormalizedName(config, firstIndex)} -> ${buildFinalName(config, firstIndex)}`;
+    }
+
+    function renderGroups() {
+        groupsBody.replaceChildren();
+        discoveredGroups.forEach((group, groupIndex) => {
+            const row = document.createElement('tr');
+            row.dataset.groupIndex = String(groupIndex);
+
+            const enabled = createInput('checkbox', 'enabled', '');
+            enabled.checked = true;
+            createCell(row, enabled);
+
+            const source = document.createElement('span');
+            source.className = 'source';
+            source.textContent = group.sourceGroup;
+            createCell(row, source);
+            createCell(row, `${group.count} (${group.minIndex}..${group.maxIndex})`);
+
+            const type = document.createElement('select');
+            type.dataset.role = 'type';
+            [['P', 'P - Prism path'], ['G', 'G - Rail path'], ['Q', 'Q - Quadro'], ['QL', 'QL - Quadro line']].forEach(([value, label]) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                type.appendChild(option);
+            });
+            createCell(row, type);
+
+            const pathNumber = createInput('number', 'pathNumber', String((groupIndex % 10) + 1));
+            pathNumber.min = '1';
+            pathNumber.max = '10';
+            createCell(row, pathNumber);
+
+            const basePrefix = createInput('text', 'basePrefix', document.getElementById('defaultBasePrefix').value.trim(), 'base-prefix');
+            basePrefix.placeholder = 'e.g. 3560';
+            createCell(row, basePrefix);
+
+            const startMq = createInput('number', 'startMq', '1');
+            startMq.min = '1';
+            createCell(row, startMq);
+
+            const startSourceIndex = createInput('number', 'startSourceIndex', String(group.minIndex));
+            startSourceIndex.min = '1';
+            startSourceIndex.max = '998';
+            createCell(row, startSourceIndex);
+
+            const preview = document.createElement('span');
+            preview.dataset.role = 'preview';
+            preview.className = 'preview';
+            createCell(row, preview);
+
+            row.addEventListener('input', () => updateRowPreview(row));
+            row.addEventListener('change', () => updateRowPreview(row));
+            groupsBody.appendChild(row);
+            updateRowPreview(row);
+        });
+    }
+
+    function getRowConfig(row) {
+        const type = row.querySelector('[data-role="type"]').value;
+        const pathNumber = Number.parseInt(row.querySelector('[data-role="pathNumber"]').value, 10);
+        const basePrefix = row.querySelector('[data-role="basePrefix"]').value.trim();
+        const startMq = Number.parseInt(row.querySelector('[data-role="startMq"]').value, 10);
+        const startSourceIndex = Number.parseInt(row.querySelector('[data-role="startSourceIndex"]').value, 10);
+        if (!type || !Number.isInteger(pathNumber) || !basePrefix || !Number.isInteger(startMq) || !Number.isInteger(startSourceIndex)) return null;
+        return { type, pathNumber, basePrefix, startMq, startSourceIndex };
+    }
+
+    function collectConfigs() {
+        const configs = new Map();
+        const targetPaths = new Map();
+        const errors = [];
+        Array.from(groupsBody.querySelectorAll('tr')).forEach((row) => {
+            if (!row.querySelector('[data-role="enabled"]').checked) return;
+            const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+            const config = getRowConfig(row);
+            if (!config) {
+                errors.push(`${group.sourceGroup}: complete every configuration field.`);
+                return;
+            }
+            if (!SAFE_NAME_COMPONENT_PATTERN.test(config.basePrefix)) {
+                errors.push(`${group.sourceGroup}: final base prefix contains invalid characters.`);
+            }
+            if (config.pathNumber < 1 || config.pathNumber > 10) {
+                errors.push(`${group.sourceGroup}: path number must be from 1 to 10.`);
+            }
+            if (config.startMq < 1) {
+                errors.push(`${group.sourceGroup}: start MQ must be at least 1.`);
+            }
+            if (config.startSourceIndex < 1 || config.startSourceIndex > 998) {
+                errors.push(`${group.sourceGroup}: start source index must be from 1 to 998.`);
+            }
+            const targetPath = `${config.type}${pad2(config.pathNumber)}`;
+            if (targetPaths.has(targetPath)) {
+                errors.push(`${group.sourceGroup}: target path ${targetPath} is already assigned to ${targetPaths.get(targetPath)}.`);
+            } else {
+                targetPaths.set(targetPath, group.sourceGroup);
+            }
+            const minimumMq = getMqIndex(config.type, group.minIndex, config.startSourceIndex, config.startMq);
+            if (minimumMq < 1) {
+                errors.push(`${group.sourceGroup}: configuration maps some records below MQ01.`);
+            }
+            configs.set(group.sourceGroup, config);
+        });
+        if (configs.size === 0) errors.push('Enable and configure at least one source group.');
+        return { configs, errors };
+    }
+
+    function replaceFields(bytes, replacements) {
+        const output = bytes.slice();
+        replacements.forEach(({ record, newName }) => {
+            const encodedName = ASCII.encode(newName);
+            if (encodedName.length > record.fieldWidth) {
+                throw new Error(`Line ${record.lineNumber}: ${newName} does not fit the ${record.fieldWidth}-character point field.`);
+            }
+            output.fill(32, record.fieldStart, record.fieldEnd);
+            output.set(encodedName, record.fieldEnd - encodedName.length);
+        });
+        return output;
+    }
+
+    function applyQuadroHeightOffsets(bytes, replacements) {
+        const output = bytes.slice();
+        replacements.forEach(({ record, config }) => {
+            if (!isQuadroPrism(config.type, record.sourceIndex) || record.heightStart === null || record.heightEnd === null) return;
+            const raw = bytesToAscii(output.subarray(record.heightStart, record.heightEnd));
+            const numericText = raw.trim();
+            const height = Number.parseFloat(numericText);
+            if (!Number.isFinite(height)) return;
+            const decimals = numericText.includes('.') ? Math.max(numericText.split('.')[1].length, 2) : 2;
+            const updated = (height - 0.04).toFixed(decimals);
+            const width = record.heightEnd - record.heightStart;
+            if (updated.length > width) {
+                throw new Error(`Line ${record.lineNumber}: adjusted height ${updated} does not fit its fixed-width field.`);
+            }
+            output.fill(32, record.heightStart, record.heightEnd);
+            output.set(ASCII.encode(updated), record.heightEnd - updated.length);
+        });
+        return output;
+    }
+
+    function buildReport(configs, replacements) {
+        const lines = [
+            'IPKT Group Path Renamer Report',
+            `File: ${sourceFile.name}`,
+            `Renamed records: ${replacements.length}`,
+            ''
+        ];
+        configs.forEach((config, sourceGroup) => {
+            lines.push(
+                `${sourceGroup} -> ${config.type}${pad2(config.pathNumber)} | final prefix ${config.basePrefix} | start MQ ${config.startMq} | start source index ${config.startSourceIndex}`
+            );
+        });
+        lines.push('', 'Renames:');
+        replacements.forEach(({ record, config, newName }) => {
+            lines.push(`Line ${record.lineNumber}: ${record.pointId} -> ${buildNormalizedName(config, record.sourceIndex)} -> ${newName}`);
+        });
+        return lines.join('\r\n');
+    }
+
+    async function discoverGroups() {
+        const file = fileInput.files[0];
+        if (!file) return setStatus('Select an IPKT file first.', 'error');
+        if (!file.name.toLowerCase().endsWith('.ipkt')) return setStatus('Only .ipkt files are supported.', 'error');
+        if (file.size > MAX_FILE_SIZE_BYTES) return setStatus('The selected file is larger than the 10 MB limit.', 'error');
+
+        analyzeButton.disabled = true;
+        setStatus('Reading the file and discovering numeric point groups...');
+        try {
+            sourceFile = file;
+            sourceBytes = new Uint8Array(await file.arrayBuffer());
+            const parsed = parseIpktBytes(sourceBytes);
+            discoveredGroups = parsed.groups;
+            latestOutput = null;
+            exportCard.classList.add('hidden');
+
+            if (discoveredGroups.length === 0) {
+                summaryCard.classList.add('hidden');
+                applyPrefixButton.disabled = true;
+                return setStatus('No point IDs ending in a numeric index were found.', 'error');
+            }
+
+            document.getElementById('summaryFile').textContent = file.name;
+            document.getElementById('summaryRecords').textContent = parsed.records.length.toLocaleString();
+            document.getElementById('summaryGroups').textContent = parsed.groups.length.toLocaleString();
+            document.getElementById('summarySkipped').textContent = parsed.skippedRecords.toLocaleString();
+            summaryCard.classList.remove('hidden');
+            applyPrefixButton.disabled = false;
+            renderGroups();
+            setStatus(`Discovered ${parsed.groups.length} source groups across ${parsed.records.length} numeric point records.`, 'success');
+        } catch (error) {
+            setStatus(`Could not analyze the file: ${error.message}`, 'error');
+        } finally {
+            analyzeButton.disabled = false;
+        }
+    }
+
+    function buildRenamedFile() {
+        warningsElement.replaceChildren();
+        const { configs, errors } = collectConfigs();
+        if (errors.length > 0) {
+            errors.forEach((message) => {
+                const item = document.createElement('li');
+                item.textContent = message;
+                warningsElement.appendChild(item);
+            });
+            exportCard.classList.add('hidden');
+            return;
+        }
+
+        try {
+            const replacements = [];
+            const normalizedReplacements = [];
+            discoveredGroups.forEach((group) => {
+                const config = configs.get(group.sourceGroup);
+                if (!config) return;
+                group.records.forEach((record) => {
+                    replacements.push({ record, config, newName: buildFinalName(config, record.sourceIndex) });
+                    normalizedReplacements.push({ record, newName: buildNormalizedName(config, record.sourceIndex) });
+                });
+            });
+            const renamedBytes = replaceFields(sourceBytes, replacements);
+            latestOutput = {
+                bytes: applyQuadroHeightOffsets(renamedBytes, replacements),
+                normalizedBytes: replaceFields(sourceBytes, normalizedReplacements),
+                report: buildReport(configs, replacements),
+                renamedCount: replacements.length
+            };
+            document.getElementById('exportSummary').textContent = `Ready: ${replacements.length} point IDs mapped across ${configs.size} configured groups. Download normalized path IDs or final MQ names.`;
+            exportCard.classList.remove('hidden');
+            exportCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (error) {
+            const item = document.createElement('li');
+            item.textContent = error.message;
+            warningsElement.appendChild(item);
+            exportCard.classList.add('hidden');
+        }
+    }
+
+    function downloadBlob(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    function clearAll() {
+        fileInput.value = '';
+        sourceFile = null;
+        sourceBytes = null;
+        discoveredGroups = [];
+        latestOutput = null;
+        groupsBody.replaceChildren();
+        warningsElement.replaceChildren();
+        summaryCard.classList.add('hidden');
+        exportCard.classList.add('hidden');
+        applyPrefixButton.disabled = true;
+        setStatus('Select an IPKT file to begin.');
+    }
+
+    analyzeButton.addEventListener('click', discoverGroups);
+    applyPrefixButton.addEventListener('click', () => {
+        const value = document.getElementById('defaultBasePrefix').value.trim();
+        groupsBody.querySelectorAll('[data-role="basePrefix"]').forEach((input) => {
+            input.value = value;
+            updateRowPreview(input.closest('tr'));
+        });
+    });
+    clearButton.addEventListener('click', clearAll);
+    renameButton.addEventListener('click', buildRenamedFile);
+    document.getElementById('downloadNormalizedButton').addEventListener('click', () => {
+        if (!latestOutput || !sourceFile) return;
+        const name = sourceFile.name.replace(/\.ipkt$/i, '_normalized.ipkt');
+        downloadBlob(new Blob([latestOutput.normalizedBytes], { type: 'application/octet-stream' }), name);
+    });
+    document.getElementById('downloadIpktButton').addEventListener('click', () => {
+        if (!latestOutput || !sourceFile) return;
+        const name = sourceFile.name.replace(/\.ipkt$/i, '_renamed.ipkt');
+        downloadBlob(new Blob([latestOutput.bytes], { type: 'application/octet-stream' }), name);
+    });
+    document.getElementById('downloadReportButton').addEventListener('click', () => {
+        if (!latestOutput || !sourceFile) return;
+        const name = sourceFile.name.replace(/\.ipkt$/i, '_rename_report.txt');
+        downloadBlob(new Blob([latestOutput.report], { type: 'text/plain;charset=utf-8' }), name);
+    });
+</script>
+</body>
+</html>

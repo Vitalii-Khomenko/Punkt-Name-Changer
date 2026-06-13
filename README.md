@@ -30,6 +30,32 @@ matching rule.
 
 ---
 
+## IPKT Group Path Renamer
+
+`IPKT-Group-Path-Renamer.html` is a separate self-contained tool for files whose
+point groups use arbitrary source numbers, such as `2505.1.01`, `101.7`, or
+`G101.19`.
+
+1. Open the HTML file and select one `.ipkt` file.
+2. Press **Discover Point Groups**. The tool groups point IDs by everything
+   before their final numeric index.
+3. For every group to rename, select `P` for a prism path, `G` for a rail path,
+   `Q` for Quadro, or `QL` for Quadro line.
+4. Set its target path number, final base prefix, start MQ, and start source
+   index.
+5. Press **Build Renamed IPKT**, then download either the normalized path-ID
+   file, the final MQ-name file, or the TXT report.
+
+The final names follow the same MQ and suffix rules as `Punkt-Name-Changer.html`.
+The normalized output applies the selected target paths, such as `P02.001` or
+`G01.019`, and can also be opened in the main renamer. Direct final-MQ output
+also applies the existing `-0.04 m` height correction to Q/QL prism positions.
+MQ numbering uses the original source index, so skipped source ranges keep their
+real positions. The browser processes and replaces raw ASCII point-field bytes
+only, preserving the remaining IPKT bytes and fixed-width field alignment.
+
+---
+
 ## Supported File Formats
 
 | Extension | Description |
@@ -367,6 +393,7 @@ The on-screen log shows:
 ```
 Punkt-Name-Changer.html  — all-in-one version (use on mobile)
 IPKT-Coordinate-Duplicate-Checker.html — standalone duplicate-coordinate diagnostic tool
+IPKT-Group-Path-Renamer.html — standalone arbitrary-group to final-MQ renamer
 index.html                    — multi-file version (use on desktop)
 css/style.css                 — mobile-first styles
 js/utils.js                   — global state, helpers, logging
