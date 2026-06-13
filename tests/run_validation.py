@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "Punkt-Name-Changer.html"
+DUPLICATE_CHECKER_PATH = ROOT / "IPKT-Coordinate-Duplicate-Checker.html"
 README_PATH = ROOT / "README.md"
 MISSION_PATH = ROOT / "Mission.md"
 FUNCTIONS_PATH = ROOT / "Function.txt"
@@ -620,6 +621,7 @@ class ProjectInvariantTests(unittest.TestCase):
     def test_required_project_files_exist(self) -> None:
         paths = [
             HTML_PATH,
+            DUPLICATE_CHECKER_PATH,
             README_PATH,
             MISSION_PATH,
             FUNCTIONS_PATH,
@@ -637,6 +639,22 @@ class ProjectInvariantTests(unittest.TestCase):
         ]
         for path in paths:
             self.assertTrue(path.exists(), f"Missing required file: {path.name}")
+
+    def test_ipkt_duplicate_checker_is_self_contained_and_local_only(self) -> None:
+        checker = DUPLICATE_CHECKER_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("IPKT Coordinate Duplicate Checker", checker)
+        self.assertIn('accept=".ipkt"', checker)
+        self.assertIn('id="coordinateTolerance"', checker)
+        self.assertIn("function parseIpktRecords", checker)
+        self.assertIn("function findDuplicateGroups", checker)
+        self.assertIn("function buildReport", checker)
+        self.assertIn("connect-src 'none'", checker)
+        self.assertIn("object-src 'none'", checker)
+        self.assertIn("never uploaded or modified", checker)
+        self.assertNotRegex(checker, r'<script\s+src=')
+        self.assertNotRegex(checker, r'<link[^>]+href=')
+        self.assertIsNone(CYRILLIC_RE.search(checker))
 
     def test_project_text_files_do_not_contain_cyrillic(self) -> None:
         for path in [README_PATH, MISSION_PATH, FUNCTIONS_PATH, RULES_PATH, AGENTS_PATH, VALIDATION_PATH]:

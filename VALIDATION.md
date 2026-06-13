@@ -14,6 +14,7 @@ python tests/run_validation.py
 
 | Case | Expected behavior |
 | --- | --- |
+| IPKT duplicate checker | The standalone HTML remains self-contained and local-only, accepts `.ipkt`, exposes a coordinate tolerance, and includes parsing, grouping, and TXT report functions. |
 | 20260613 multi-family normalization | The dedicated Python mini-script maps four prism source families to `P02`, `P03`, `P04`, and `P05`, then maps each EX sequence across the bridge from `MQ22-2` to `MQ24-1/2` and resumes four-position groups at `MQ25-1`. |
 | Single-digit output suffixes | Pattern output names end in `.1`, `.2`, `.3`, or `.4` without a leading zero in both split and single-file implementations. |
 | Gleis prefix normalization | The focused Python mini-script maps source pairs to every other MQ, uses consecutive MQs for `G101.19..36`, resumes every-other-MQ mapping after point 36, preserves fixed-width bytes, and leaves non-matching control points unchanged. |
