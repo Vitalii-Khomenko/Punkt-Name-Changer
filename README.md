@@ -100,9 +100,11 @@ and previews keep enough space to read. The compact Type selector contains only
 Below the configuration table, a live horizontally scrollable MQ line schematic
 shows each enabled group. Solid blue nodes are measured MQ sections, hollow red
 nodes are inferred missing sections, and orange nodes mark recognized bridge
-sections. For automatic EX groups it also shows the proposed editable output
-prefix and the MQ reserved across each detected bridge. The schematic uses the
-same MQ plan as final export and redraws when configuration values change.
+sections. For automatic EX groups it shows every proposed position in order,
+such as `MQ19-1`, `MQ19-2`, `MQ19-3`, and `MQ19-4`, plus missing EX positions,
+the editable output prefix, and the MQ reserved across each detected bridge.
+The schematic uses the same MQ plan as final export and redraws when
+configuration values change.
 
 The browser processes and replaces raw ASCII fixed-width fields only, preserving
 the remaining IPKT bytes and alignment.

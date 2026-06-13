@@ -101,7 +101,7 @@
         .schematic-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-bottom: 8px; font-size: 0.86rem; font-weight: 700; }
         .mq-line-wrap { overflow-x: auto; padding: 8px 6px 4px; }
         .mq-line { display: flex; width: max-content; min-width: 100%; }
-        .mq-node { position: relative; flex: 0 0 46px; padding-top: 17px; color: var(--muted); text-align: center; font-size: 0.7rem; }
+        .mq-node { position: relative; flex: 0 0 58px; padding-top: 17px; color: var(--muted); text-align: center; font-size: 0.7rem; }
         .mq-node::before { content: ""; position: absolute; top: 5px; left: 0; right: 0; height: 3px; background: #9eb0bc; }
         .mq-node:first-child::before { left: 50%; }
         .mq-node:last-child::before { right: 50%; }
@@ -209,9 +209,9 @@
             <h3 id="schematicHeading">MQ Line Schematic</h3>
             <p class="help">A live view of proposed MQ names, measured sections, inferred missing sections, and recognized or reserved bridge spans.</p>
             <div class="schematic-legend">
-                <span class="legend-item"><span class="legend-dot"></span>Measured MQ</span>
-                <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ</span>
-                <span class="legend-item"><span class="legend-dot bridge"></span>Bridge section</span>
+                <span class="legend-item"><span class="legend-dot"></span>Measured MQ or EX position</span>
+                <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ or EX position</span>
+                <span class="legend-item"><span class="legend-dot bridge"></span>Bridge section or reserved MQ</span>
             </div>
             <div id="mqSchematic"></div>
         </section>
@@ -969,8 +969,10 @@
 
             const measuredMqs = new Set();
             const bridgeMqs = new Set();
+            let schematicNodes = null;
             let bridgeCount = 0;
             let displayName = `${group.sourceGroup} -> ${config.type}${pad2(config.pathNumber)}`;
+            let summaryText = '';
 
             if (group.isExplicitEx) {
                 const exPlan = getExplicitExPlan(group, config, previewConfigs);
@@ -979,6 +981,37 @@
                 exPlan.bridges.forEach((bridge) => bridgeMqs.add(bridge.reservedMqIndex));
                 bridgeCount = exPlan.bridges.length;
                 displayName = `${group.sourceGroup} -> ${config.basePrefix}.MQ...`;
+                const measuredSourceIndexes = new Set(group.records.map((record) => record.sourceIndex));
+                schematicNodes = [];
+                let mqIndex = exPlan.anchor.mqIndex;
+                exPlan.chunks.forEach((chunk) => {
+                    chunk.sourceIndexes.forEach((sourceIndex, positionIndex) => {
+                        const position = positionIndex + 1;
+                        const measured = measuredSourceIndexes.has(sourceIndex);
+                        schematicNodes.push({
+                            label: `MQ${pad2(mqIndex)}-${position}`,
+                            title: measured
+                                ? `${config.basePrefix}.MQ${mqIndex}-${position}: proposed EX point for EX.${pad2(sourceIndex)}`
+                                : `${config.basePrefix}.MQ${mqIndex}-${position}: missing EX.${pad2(sourceIndex)} position`,
+                            missing: !measured,
+                            bridge: false
+                        });
+                    });
+                    if (chunk.bridgeAfterDistance !== undefined) {
+                        schematicNodes.push({
+                            label: `MQ${pad2(mqIndex + 1)}`,
+                            title: `MQ${pad2(mqIndex + 1)}: reserved bridge MQ`,
+                            missing: true,
+                            bridge: true
+                        });
+                        mqIndex += 2;
+                    } else {
+                        mqIndex += 1;
+                    }
+                });
+                const measuredPositionCount = schematicNodes.filter((node) => !node.missing).length;
+                const missingPositionCount = schematicNodes.filter((node) => node.missing && !node.bridge).length;
+                summaryText = `positions ${measuredPositionCount} | missing ${missingPositionCount} | bridges ${bridgeCount}`;
             } else {
                 const plan = getCoordinateAwareMqPlan(group, config);
                 config.mqBySection = plan.mqBySection;
@@ -1001,6 +1034,9 @@
             const minimumMq = Math.min(...measuredMqs);
             const maximumMq = Math.max(...measuredMqs);
             const missingCount = maximumMq - minimumMq + 1 - measuredMqs.size;
+            if (!summaryText) {
+                summaryText = `MQ${pad2(minimumMq)}..MQ${pad2(maximumMq)} | measured ${measuredMqs.size} | missing ${missingCount} | bridges ${bridgeCount}`;
+            }
             const wrapper = document.createElement('article');
             wrapper.className = 'schematic-group';
 
@@ -1009,29 +1045,40 @@
             const name = document.createElement('span');
             name.textContent = displayName;
             const summary = document.createElement('span');
-            summary.textContent = `MQ${pad2(minimumMq)}..MQ${pad2(maximumMq)} | measured ${measuredMqs.size} | missing ${missingCount} | bridges ${bridgeCount}`;
+            summary.textContent = summaryText;
             title.append(name, summary);
 
             const lineWrap = document.createElement('div');
             lineWrap.className = 'mq-line-wrap';
             const line = document.createElement('div');
             line.className = 'mq-line';
-            for (let mqIndex = minimumMq; mqIndex <= maximumMq; mqIndex += 1) {
+            if (!schematicNodes) {
+                schematicNodes = [];
+                for (let mqIndex = minimumMq; mqIndex <= maximumMq; mqIndex += 1) {
+                    schematicNodes.push({
+                        label: `MQ${pad2(mqIndex)}`,
+                        title: bridgeMqs.has(mqIndex)
+                            ? `MQ${pad2(mqIndex)}: ${measuredMqs.has(mqIndex) ? 'measured bridge section' : 'reserved bridge MQ'}`
+                            : measuredMqs.has(mqIndex)
+                                ? `MQ${pad2(mqIndex)}: measured section`
+                                : `MQ${pad2(mqIndex)}: inferred missing section`,
+                        missing: !measuredMqs.has(mqIndex),
+                        bridge: bridgeMqs.has(mqIndex)
+                    });
+                }
+            }
+            schematicNodes.forEach((schematicNode) => {
                 const node = document.createElement('span');
                 node.className = 'mq-node';
-                if (!measuredMqs.has(mqIndex)) node.classList.add('missing');
-                if (bridgeMqs.has(mqIndex)) node.classList.add('bridge');
-                node.title = bridgeMqs.has(mqIndex)
-                    ? `MQ${pad2(mqIndex)}: ${measuredMqs.has(mqIndex) ? 'measured bridge section' : 'reserved bridge MQ'}`
-                    : measuredMqs.has(mqIndex)
-                        ? `MQ${pad2(mqIndex)}: measured section`
-                        : `MQ${pad2(mqIndex)}: inferred missing section`;
+                if (schematicNode.missing) node.classList.add('missing');
+                if (schematicNode.bridge) node.classList.add('bridge');
+                node.title = schematicNode.title;
                 const label = document.createElement('span');
                 label.className = 'mq-node-label';
-                label.textContent = `MQ${pad2(mqIndex)}`;
+                label.textContent = schematicNode.label;
                 node.appendChild(label);
                 line.appendChild(node);
-            }
+            });
             lineWrap.appendChild(line);
             wrapper.append(title, lineWrap);
             mqSchematic.appendChild(wrapper);
