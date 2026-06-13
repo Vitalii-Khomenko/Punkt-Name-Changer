@@ -34,6 +34,10 @@ Current browser-level policy:
 - `Punkt-Name-Changer.html` permits inline script/style because it must
   remain self-contained for field use, but still blocks network connections,
   object embedding, base URI changes, and form submission.
+- `IPKT-Coordinate-Duplicate-Checker.html` and
+  `IPKT-Group-Path-Renamer.html` use the same local-only single-file policy,
+  enforce a 10 MB input limit, accept only `.ipkt` files, render imported values
+  through text-only DOM APIs, and sanitize generated download filenames.
 
 If the app is hosted behind a web server, prefer sending equivalent HTTP
 headers:

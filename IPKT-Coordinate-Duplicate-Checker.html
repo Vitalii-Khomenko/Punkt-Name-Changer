@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
     <title>IPKT Coordinate Duplicate Checker</title>
     <style>
         :root {
@@ -522,8 +522,45 @@
         };
     }
 
+    function findMatchingPairs(group, tolerance) {
+        const pairs = [];
+        for (let leftIndex = 0; leftIndex < group.length - 1; leftIndex += 1) {
+            for (let rightIndex = leftIndex + 1; rightIndex < group.length; rightIndex += 1) {
+                const left = group[leftIndex];
+                const right = group[rightIndex];
+                const deltaY = Math.abs(left.y - right.y);
+                const deltaX = Math.abs(left.x - right.x);
+                if (
+                    deltaY <= tolerance + COORDINATE_COMPARISON_EPSILON &&
+                    deltaX <= tolerance + COORDINATE_COMPARISON_EPSILON
+                ) {
+                    pairs.push({ left, right, deltaY, deltaX });
+                }
+            }
+        }
+        return pairs;
+    }
+
     function formatCoordinate(value) {
         return Number.isFinite(value) ? value.toFixed(5) : '-';
+    }
+
+    function formatReportDate(value) {
+        return new Date(value).toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZoneName: 'short'
+        });
+    }
+
+    function getSafeDownloadBaseName(fileName) {
+        const baseName = String(fileName).replace(/\.ipkt$/i, '').replace(/[^A-Za-z0-9._-]+/g, '_');
+        return baseName || 'ipkt';
     }
 
     function renderAnalysis(analysis) {
@@ -598,6 +635,7 @@
         const pointsInGroups = analysis.groups.reduce((sum, group) => sum + group.length, 0);
         const lines = [
             'IPKT Coordinate Duplicate Checker Report',
+            `Generated: ${formatReportDate(analysis.generatedAt)}`,
             `File: ${analysis.fileName}`,
             `Tolerance: ${analysis.tolerance} m per Y/X component`,
             `YXZ records: ${analysis.records.length}`,
@@ -614,12 +652,19 @@
 
         analysis.groups.forEach((group, groupIndex) => {
             const deltas = calculateGroupDeltas(group);
+            const matchingPairs = findMatchingPairs(group, analysis.tolerance);
             lines.push(
-                `Group ${groupIndex + 1} (${group.length} records, Y range ${formatCoordinate(deltas.y)} m, X range ${formatCoordinate(deltas.x)} m)`
+                `Group ${groupIndex + 1} (${group.length} records, ${matchingPairs.length} direct matches, Y range ${formatCoordinate(deltas.y)} m, X range ${formatCoordinate(deltas.x)} m)`
             );
             group.forEach((record) => {
                 lines.push(
                     `  ${record.pointId} | LfNr ${record.lfnr || '-'} | line ${record.lineNumber} | Y ${formatCoordinate(record.y)} | X ${formatCoordinate(record.x)} | H ${formatCoordinate(record.height)}`
+                );
+            });
+            lines.push('  Direct matching pairs:');
+            matchingPairs.forEach((pair) => {
+                lines.push(
+                    `    ${pair.left.pointId} (line ${pair.left.lineNumber}) <-> ${pair.right.pointId} (line ${pair.right.lineNumber}) | delta Y ${formatCoordinate(pair.deltaY)} m | delta X ${formatCoordinate(pair.deltaX)} m`
                 );
             });
             lines.push('');
@@ -636,7 +681,7 @@
         const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        const baseName = latestAnalysis.fileName.replace(/\.ipkt$/i, '');
+        const baseName = getSafeDownloadBaseName(latestAnalysis.fileName);
         link.href = url;
         link.download = `${baseName}_duplicate_coordinates.txt`;
         document.body.appendChild(link);
@@ -677,6 +722,7 @@
             groups.sort((left, right) => left[0].lineNumber - right[0].lineNumber);
             latestAnalysis = {
                 fileName: file.name,
+                generatedAt: new Date().toISOString(),
                 tolerance,
                 records: parsed.records,
                 skippedRecords: parsed.skippedRecords,
@@ -710,6 +756,11 @@
     clearButton.addEventListener('click', clearAnalysis);
     fileInput.addEventListener('change', () => {
         if (fileInput.files[0]) {
+            latestAnalysis = null;
+            exportButton.disabled = true;
+            summaryCard.classList.add('hidden');
+            resultsCard.classList.add('hidden');
+            resultsElement.replaceChildren();
             setStatus(`Ready to analyze ${fileInput.files[0].name}.`);
         }
     });

@@ -22,11 +22,13 @@ identical Y/X coordinates.
    Y/X values only.
 4. Press **Find Duplicate Coordinates**.
 5. Review the grouped point IDs, Leica `LfNr`, file lines, coordinates, and
-   heights. Optionally export the result as a TXT report.
+   heights. Export the detailed TXT log when needed.
 
 The checker reads the file only in browser memory. It does not upload or modify
 the source file. Height is shown for diagnosis but is not part of the duplicate
-matching rule.
+matching rule. The TXT log includes its generated date/time, source filename,
+summary counts, every duplicate group, and each direct matching point pair with
+Y/X differences.
 
 ---
 
@@ -37,14 +39,20 @@ point groups use arbitrary source numbers, such as `2505.1.01`, `101.7`, or
 `G101.19`.
 
 1. Open the HTML file and select one `.ipkt` file.
-2. Press **Discover Point Groups**. The tool groups point IDs by everything
-   before their final numeric index.
+2. Set the duplicate-coordinate tolerance if needed, then press **Discover Point
+   Groups**. The tool groups point IDs by everything before their final numeric
+   index and checks every valid `YXZ` record for duplicate coordinates.
 3. For every group to rename, select `P` for a prism path, `G` for a rail path,
    `Q` for Quadro, or `QL` for Quadro line.
 4. Set its target path number, final base prefix, start MQ, and start source
    index.
 5. Press **Build Renamed IPKT**, then download either the normalized path-ID
    file, the final MQ-name file, or the TXT report.
+
+The duplicate-coordinate results appear below the group configuration and can
+be exported separately as a detailed TXT log containing its generated
+date/time, source filename, duplicate groups, point records, and direct matching
+pairs.
 
 The final names follow the same MQ and suffix rules as `Punkt-Name-Changer.html`.
 The normalized output applies the selected target paths, such as `P02.001` or

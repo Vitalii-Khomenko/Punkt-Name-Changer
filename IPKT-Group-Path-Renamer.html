@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
     <title>IPKT Group Path Renamer</title>
     <style>
         :root {
@@ -109,6 +109,10 @@
         .mq-node.bridge::after { border-color: #b66a12; background: #e8a64c; }
         .mq-node-label { white-space: nowrap; }
         .warning-list { margin: 10px 0 0; color: var(--error); }
+        .duplicate-group { margin-top: 12px; overflow: hidden; border: 1px solid #efb1b1; border-radius: 10px; background: #fff5f5; }
+        .duplicate-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #efc4c4; color: var(--error); font-weight: 800; }
+        .empty-state { padding: 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); text-align: center; }
+        .empty-state.success { border-color: #91cbae; background: #eaf7f0; color: var(--success); font-weight: 700; }
 
         @media (max-width: 760px) {
             main { margin-top: 12px; }
@@ -138,6 +142,11 @@
                 <label for="defaultBasePrefix">Default final base prefix</label>
                 <input id="defaultBasePrefix" type="text" placeholder="e.g. 3560" autocomplete="off" spellcheck="false">
                 <p class="help">Applied to every discovered group when you press Apply Default Prefix.</p>
+            </div>
+            <div>
+                <label for="coordinateTolerance">Duplicate Y/X tolerance in meters</label>
+                <input id="coordinateTolerance" type="number" min="0" max="1" step="0.001" value="0.1">
+                <p class="help">Duplicate records are listed when each Y/X component differs by no more than this value.</p>
             </div>
         </div>
         <div class="actions">
@@ -202,8 +211,17 @@
         <ul id="warnings" class="warning-list"></ul>
     </section>
 
+    <section id="duplicatesCard" class="card hidden">
+        <h2>3. Duplicate Coordinate Check</h2>
+        <p id="duplicatesSummary" class="status"></p>
+        <div id="duplicateResults"></div>
+        <div class="actions">
+            <button id="downloadDuplicatesButton" class="secondary" type="button" disabled>Download Duplicate TXT Report</button>
+        </div>
+    </section>
+
     <section id="exportCard" class="card hidden">
-        <h2>3. Export</h2>
+        <h2>4. Export</h2>
         <p id="exportSummary" class="status success"></p>
         <div class="actions">
             <button id="downloadNormalizedButton" class="secondary" type="button">Download Normalized IPKT</button>
@@ -217,6 +235,8 @@
     'use strict';
 
     const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+    const DEFAULT_DUPLICATE_TOLERANCE = 0.1;
+    const COORDINATE_COMPARISON_EPSILON = 1e-9;
     const SAFE_NAME_COMPONENT_PATTERN = /^[A-Za-z0-9._-]+$/;
     const ASCII = new TextEncoder();
     const fileInput = document.getElementById('ipktFile');
@@ -227,6 +247,9 @@
     const statusElement = document.getElementById('status');
     const summaryCard = document.getElementById('summaryCard');
     const exportCard = document.getElementById('exportCard');
+    const duplicatesCard = document.getElementById('duplicatesCard');
+    const duplicateResults = document.getElementById('duplicateResults');
+    const downloadDuplicatesButton = document.getElementById('downloadDuplicatesButton');
     const groupsBody = document.getElementById('groupsBody');
     const warningsElement = document.getElementById('warnings');
     const mqSchematic = document.getElementById('mqSchematic');
@@ -235,6 +258,7 @@
     let sourceBytes = null;
     let discoveredGroups = [];
     let latestOutput = null;
+    let latestDuplicateAnalysis = null;
 
     function setStatus(message, kind = '') {
         statusElement.textContent = message;
@@ -290,8 +314,10 @@
 
     function parseIpktBytes(bytes) {
         const records = [];
+        const duplicateRecords = [];
         const groupsByName = new Map();
         let skippedRecords = 0;
+        let duplicateSkippedRecords = 0;
         const yxzMarker = ASCII.encode('|YXZ|');
         let lineStart = 0;
         let lineNumber = 1;
@@ -304,21 +330,36 @@
             if (yxzIndex !== -1) {
                 const pipeIndex = findLastByte(bytes, 124, lineStart, yxzIndex);
                 const pointId = pipeIndex === -1 ? '' : trimAsciiField(bytes, pipeIndex + 1, yxzIndex);
+                const lfnrEnd = findByte(bytes, 124, lineStart, yxzIndex);
+                const lfnr = lfnrEnd === -1 ? '' : trimAsciiField(bytes, lineStart, lfnrEnd);
+                const yEnd = findByte(bytes, 124, yxzIndex + yxzMarker.length, lineEnd);
+                const xEnd = yEnd === -1 ? -1 : findByte(bytes, 124, yEnd + 1, lineEnd);
+                const heightEnd = xEnd === -1 ? -1 : findByte(bytes, 124, xEnd + 1, lineEnd);
+                const y = yEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, yxzIndex + yxzMarker.length, yEnd));
+                const x = xEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, yEnd + 1, xEnd));
+                const height = heightEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, xEnd + 1, heightEnd));
+                const finiteY = Number.isFinite(y) ? y : null;
+                const finiteX = Number.isFinite(x) ? x : null;
+                const finiteHeight = Number.isFinite(height) ? height : null;
+
+                if (pointId && finiteY !== null && finiteX !== null) {
+                    duplicateRecords.push({ pointId, lfnr, lineNumber, y: finiteY, x: finiteX, height: finiteHeight });
+                } else {
+                    duplicateSkippedRecords += 1;
+                }
+
                 const parsed = parseSourcePointId(pointId);
                 if (!parsed) {
                     skippedRecords += 1;
                 } else {
-                    const yEnd = findByte(bytes, 124, yxzIndex + yxzMarker.length, lineEnd);
-                    const xEnd = yEnd === -1 ? -1 : findByte(bytes, 124, yEnd + 1, lineEnd);
-                    const heightEnd = xEnd === -1 ? -1 : findByte(bytes, 124, xEnd + 1, lineEnd);
-                    const y = yEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, yxzIndex + yxzMarker.length, yEnd));
-                    const x = xEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, yEnd + 1, xEnd));
                     const record = {
                         ...parsed,
                         pointId,
+                        lfnr,
                         lineNumber,
-                        y: Number.isFinite(y) ? y : null,
-                        x: Number.isFinite(x) ? x : null,
+                        y: finiteY,
+                        x: finiteX,
+                        height: finiteHeight,
                         fieldStart: pipeIndex + 1,
                         fieldEnd: yxzIndex,
                         fieldWidth: yxzIndex - pipeIndex - 1,
@@ -347,7 +388,211 @@
             lineNumber += 1;
         }
 
-        return { records, groups: Array.from(groupsByName.values()), skippedRecords };
+        return { records, duplicateRecords, groups: Array.from(groupsByName.values()), skippedRecords, duplicateSkippedRecords };
+    }
+
+    function createDisjointSet(size) {
+        const parent = Array.from({ length: size }, (_, index) => index);
+        const rank = new Array(size).fill(0);
+
+        function find(index) {
+            let root = index;
+            while (parent[root] !== root) root = parent[root];
+            while (parent[index] !== index) {
+                const next = parent[index];
+                parent[index] = root;
+                index = next;
+            }
+            return root;
+        }
+
+        function union(left, right) {
+            let leftRoot = find(left);
+            let rightRoot = find(right);
+            if (leftRoot === rightRoot) return;
+            if (rank[leftRoot] < rank[rightRoot]) [leftRoot, rightRoot] = [rightRoot, leftRoot];
+            parent[rightRoot] = leftRoot;
+            if (rank[leftRoot] === rank[rightRoot]) rank[leftRoot] += 1;
+        }
+
+        return { find, union };
+    }
+
+    function findDuplicateGroups(records, tolerance) {
+        if (records.length < 2) return [];
+        if (tolerance === 0) {
+            const exactGroups = new Map();
+            records.forEach((record) => {
+                const key = `${record.y}|${record.x}`;
+                if (!exactGroups.has(key)) exactGroups.set(key, []);
+                exactGroups.get(key).push(record);
+            });
+            return Array.from(exactGroups.values()).filter((group) => group.length > 1);
+        }
+
+        const disjointSet = createDisjointSet(records.length);
+        const buckets = new Map();
+        records.forEach((record, recordIndex) => {
+            const cellY = Math.floor(record.y / tolerance);
+            const cellX = Math.floor(record.x / tolerance);
+            for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+                for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+                    (buckets.get(`${cellY + offsetY}:${cellX + offsetX}`) || []).forEach((candidateIndex) => {
+                        const candidate = records[candidateIndex];
+                        if (
+                            Math.abs(record.y - candidate.y) <= tolerance + COORDINATE_COMPARISON_EPSILON &&
+                            Math.abs(record.x - candidate.x) <= tolerance + COORDINATE_COMPARISON_EPSILON
+                        ) {
+                            disjointSet.union(recordIndex, candidateIndex);
+                        }
+                    });
+                }
+            }
+            const ownKey = `${cellY}:${cellX}`;
+            if (!buckets.has(ownKey)) buckets.set(ownKey, []);
+            buckets.get(ownKey).push(recordIndex);
+        });
+
+        const connectedGroups = new Map();
+        records.forEach((record, index) => {
+            const root = disjointSet.find(index);
+            if (!connectedGroups.has(root)) connectedGroups.set(root, []);
+            connectedGroups.get(root).push(record);
+        });
+        return Array.from(connectedGroups.values()).filter((group) => group.length > 1);
+    }
+
+    function calculateDuplicateGroupDeltas(group) {
+        return {
+            y: Math.max(...group.map((record) => record.y)) - Math.min(...group.map((record) => record.y)),
+            x: Math.max(...group.map((record) => record.x)) - Math.min(...group.map((record) => record.x))
+        };
+    }
+
+    function findMatchingPairs(group, tolerance) {
+        const pairs = [];
+        for (let leftIndex = 0; leftIndex < group.length - 1; leftIndex += 1) {
+            for (let rightIndex = leftIndex + 1; rightIndex < group.length; rightIndex += 1) {
+                const left = group[leftIndex];
+                const right = group[rightIndex];
+                const deltaY = Math.abs(left.y - right.y);
+                const deltaX = Math.abs(left.x - right.x);
+                if (
+                    deltaY <= tolerance + COORDINATE_COMPARISON_EPSILON &&
+                    deltaX <= tolerance + COORDINATE_COMPARISON_EPSILON
+                ) {
+                    pairs.push({ left, right, deltaY, deltaX });
+                }
+            }
+        }
+        return pairs;
+    }
+
+    function formatCoordinate(value) {
+        return Number.isFinite(value) ? value.toFixed(5) : '-';
+    }
+
+    function formatReportDate(value) {
+        return new Date(value).toLocaleString('en-GB', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false, timeZoneName: 'short'
+        });
+    }
+
+    function getSafeDownloadBaseName(fileName) {
+        const baseName = String(fileName).replace(/\.ipkt$/i, '').replace(/[^A-Za-z0-9._-]+/g, '_');
+        return baseName || 'ipkt';
+    }
+
+    function renderDuplicateAnalysis(analysis) {
+        const pointsInGroups = analysis.groups.reduce((sum, group) => sum + group.length, 0);
+        document.getElementById('duplicatesSummary').textContent =
+            `${analysis.groups.length} duplicate coordinate groups found across ${pointsInGroups} points using ${analysis.tolerance} m Y/X tolerance.`;
+        duplicateResults.replaceChildren();
+        duplicatesCard.classList.remove('hidden');
+        downloadDuplicatesButton.disabled = false;
+
+        if (analysis.groups.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-state success';
+            empty.textContent = 'No duplicate coordinates were found with the selected tolerance.';
+            duplicateResults.appendChild(empty);
+            return;
+        }
+
+        analysis.groups.forEach((group, groupIndex) => {
+            const deltas = calculateDuplicateGroupDeltas(group);
+            const wrapper = document.createElement('article');
+            wrapper.className = 'duplicate-group';
+            const header = document.createElement('div');
+            header.className = 'duplicate-header';
+            const title = document.createElement('span');
+            title.textContent = `Group ${groupIndex + 1}: ${group.length} records`;
+            const range = document.createElement('span');
+            range.textContent = `Range: Y ${formatCoordinate(deltas.y)} m, X ${formatCoordinate(deltas.x)} m`;
+            header.append(title, range);
+
+            const tableWrap = document.createElement('div');
+            tableWrap.className = 'table-wrap';
+            const table = document.createElement('table');
+            const headRow = document.createElement('tr');
+            ['Point ID', 'LfNr', 'File line', 'Y', 'X', 'Height'].forEach((label) => {
+                const cell = document.createElement('th');
+                cell.textContent = label;
+                headRow.appendChild(cell);
+            });
+            const head = document.createElement('thead');
+            head.appendChild(headRow);
+            const body = document.createElement('tbody');
+            group.forEach((record) => {
+                const row = document.createElement('tr');
+                [record.pointId, record.lfnr || '-', String(record.lineNumber), formatCoordinate(record.y), formatCoordinate(record.x), formatCoordinate(record.height)]
+                    .forEach((value) => {
+                        const cell = document.createElement('td');
+                        cell.textContent = value;
+                        row.appendChild(cell);
+                    });
+                body.appendChild(row);
+            });
+            table.append(head, body);
+            tableWrap.appendChild(table);
+            wrapper.append(header, tableWrap);
+            duplicateResults.appendChild(wrapper);
+        });
+    }
+
+    function buildDuplicateReport(analysis) {
+        const pointsInGroups = analysis.groups.reduce((sum, group) => sum + group.length, 0);
+        const lines = [
+            'IPKT Group Path Renamer Duplicate Coordinate Report',
+            `Generated: ${formatReportDate(analysis.generatedAt)}`,
+            `File: ${analysis.fileName}`,
+            `Tolerance: ${analysis.tolerance} m per Y/X component`,
+            `Valid YXZ records: ${analysis.records.length}`,
+            `Skipped malformed YXZ records: ${analysis.skippedRecords}`,
+            `Duplicate groups: ${analysis.groups.length}`,
+            `Points in duplicate groups: ${pointsInGroups}`,
+            ''
+        ];
+        if (analysis.groups.length === 0) {
+            lines.push('No duplicate coordinates were found.');
+            return lines.join('\r\n');
+        }
+        analysis.groups.forEach((group, groupIndex) => {
+            const deltas = calculateDuplicateGroupDeltas(group);
+            const matchingPairs = findMatchingPairs(group, analysis.tolerance);
+            lines.push(`Group ${groupIndex + 1} (${group.length} records, ${matchingPairs.length} direct matches, Y range ${formatCoordinate(deltas.y)} m, X range ${formatCoordinate(deltas.x)} m)`);
+            group.forEach((record) => {
+                lines.push(`  ${record.pointId} | LfNr ${record.lfnr || '-'} | line ${record.lineNumber} | Y ${formatCoordinate(record.y)} | X ${formatCoordinate(record.x)} | H ${formatCoordinate(record.height)}`);
+            });
+            lines.push('  Direct matching pairs:');
+            matchingPairs.forEach((pair) => {
+                lines.push(`    ${pair.left.pointId} (line ${pair.left.lineNumber}) <-> ${pair.right.pointId} (line ${pair.right.lineNumber}) | delta Y ${formatCoordinate(pair.deltaY)} m | delta X ${formatCoordinate(pair.deltaX)} m`);
+            });
+            lines.push('');
+        });
+        return lines.join('\r\n');
     }
 
     function pad2(value) {
@@ -832,6 +1077,7 @@
     function buildReport(configs, replacements) {
         const lines = [
             'IPKT Group Path Renamer Report',
+            `Generated: ${formatReportDate(new Date().toISOString())}`,
             `File: ${sourceFile.name}`,
             `Renamed records: ${replacements.length}`,
             ''
@@ -863,12 +1109,17 @@
 
     async function discoverGroups() {
         const file = fileInput.files[0];
+        const duplicateTolerance = Number.parseFloat(document.getElementById('coordinateTolerance').value);
         if (!file) return setStatus('Select an IPKT file first.', 'error');
         if (!file.name.toLowerCase().endsWith('.ipkt')) return setStatus('Only .ipkt files are supported.', 'error');
         if (file.size > MAX_FILE_SIZE_BYTES) return setStatus('The selected file is larger than the 10 MB limit.', 'error');
+        if (!Number.isFinite(duplicateTolerance) || duplicateTolerance < 0 || duplicateTolerance > 1) {
+            return setStatus('Duplicate tolerance must be a number from 0 to 1 meter.', 'error');
+        }
 
         analyzeButton.disabled = true;
-        setStatus('Reading the file and discovering numeric point groups...');
+        downloadDuplicatesButton.disabled = true;
+        setStatus('Reading the file, discovering groups, and checking duplicate coordinates...');
         try {
             sourceFile = file;
             sourceBytes = new Uint8Array(await file.arrayBuffer());
@@ -876,11 +1127,22 @@
             discoveredGroups = parsed.groups;
             latestOutput = null;
             exportCard.classList.add('hidden');
+            const duplicateGroups = findDuplicateGroups(parsed.duplicateRecords, duplicateTolerance);
+            duplicateGroups.sort((left, right) => left[0].lineNumber - right[0].lineNumber);
+            latestDuplicateAnalysis = {
+                fileName: file.name,
+                generatedAt: new Date().toISOString(),
+                tolerance: duplicateTolerance,
+                records: parsed.duplicateRecords,
+                skippedRecords: parsed.duplicateSkippedRecords,
+                groups: duplicateGroups
+            };
+            renderDuplicateAnalysis(latestDuplicateAnalysis);
 
             if (discoveredGroups.length === 0) {
                 summaryCard.classList.add('hidden');
                 applyPrefixButton.disabled = true;
-                return setStatus('No point IDs ending in a numeric index were found.', 'error');
+                return setStatus(`No point IDs ending in a numeric index were found. Duplicate check completed with ${duplicateGroups.length} groups.`, 'error');
             }
 
             document.getElementById('summaryFile').textContent = file.name;
@@ -890,8 +1152,11 @@
             summaryCard.classList.remove('hidden');
             applyPrefixButton.disabled = false;
             renderGroups();
-            setStatus(`Discovered ${parsed.groups.length} source groups across ${parsed.records.length} numeric point records.`, 'success');
+            setStatus(`Discovered ${parsed.groups.length} source groups across ${parsed.records.length} numeric point records. Duplicate check found ${duplicateGroups.length} groups.`, 'success');
         } catch (error) {
+            latestDuplicateAnalysis = null;
+            duplicatesCard.classList.add('hidden');
+            downloadDuplicatesButton.disabled = true;
             setStatus(`Could not analyze the file: ${error.message}`, 'error');
         } finally {
             analyzeButton.disabled = false;
@@ -965,12 +1230,17 @@
         sourceBytes = null;
         discoveredGroups = [];
         latestOutput = null;
+        latestDuplicateAnalysis = null;
         groupsBody.replaceChildren();
         mqSchematic.replaceChildren();
+        duplicateResults.replaceChildren();
         warningsElement.replaceChildren();
         summaryCard.classList.add('hidden');
+        duplicatesCard.classList.add('hidden');
         exportCard.classList.add('hidden');
         applyPrefixButton.disabled = true;
+        downloadDuplicatesButton.disabled = true;
+        document.getElementById('coordinateTolerance').value = String(DEFAULT_DUPLICATE_TOLERANCE);
         setStatus('Select an IPKT file to begin.');
     }
 
@@ -984,21 +1254,43 @@
         renderMqSchematic();
     });
     clearButton.addEventListener('click', clearAll);
+    fileInput.addEventListener('change', () => {
+        sourceFile = null;
+        sourceBytes = null;
+        discoveredGroups = [];
+        latestOutput = null;
+        latestDuplicateAnalysis = null;
+        groupsBody.replaceChildren();
+        mqSchematic.replaceChildren();
+        duplicateResults.replaceChildren();
+        warningsElement.replaceChildren();
+        summaryCard.classList.add('hidden');
+        duplicatesCard.classList.add('hidden');
+        exportCard.classList.add('hidden');
+        applyPrefixButton.disabled = true;
+        downloadDuplicatesButton.disabled = true;
+        if (fileInput.files[0]) setStatus(`Ready to analyze ${fileInput.files[0].name}.`);
+    });
     renameButton.addEventListener('click', buildRenamedFile);
     document.getElementById('downloadNormalizedButton').addEventListener('click', () => {
         if (!latestOutput || !sourceFile) return;
-        const name = sourceFile.name.replace(/\.ipkt$/i, '_normalized.ipkt');
+        const name = `${getSafeDownloadBaseName(sourceFile.name)}_normalized.ipkt`;
         downloadBlob(new Blob([latestOutput.normalizedBytes], { type: 'application/octet-stream' }), name);
     });
     document.getElementById('downloadIpktButton').addEventListener('click', () => {
         if (!latestOutput || !sourceFile) return;
-        const name = sourceFile.name.replace(/\.ipkt$/i, '_renamed.ipkt');
+        const name = `${getSafeDownloadBaseName(sourceFile.name)}_renamed.ipkt`;
         downloadBlob(new Blob([latestOutput.bytes], { type: 'application/octet-stream' }), name);
     });
     document.getElementById('downloadReportButton').addEventListener('click', () => {
         if (!latestOutput || !sourceFile) return;
-        const name = sourceFile.name.replace(/\.ipkt$/i, '_rename_report.txt');
+        const name = `${getSafeDownloadBaseName(sourceFile.name)}_rename_report.txt`;
         downloadBlob(new Blob([latestOutput.report], { type: 'text/plain;charset=utf-8' }), name);
+    });
+    downloadDuplicatesButton.addEventListener('click', () => {
+        if (!latestDuplicateAnalysis) return;
+        const name = `${getSafeDownloadBaseName(latestDuplicateAnalysis.fileName)}_duplicate_coordinates.txt`;
+        downloadBlob(new Blob([buildDuplicateReport(latestDuplicateAnalysis)], { type: 'text/plain;charset=utf-8' }), name);
     });
 </script>
 </body>

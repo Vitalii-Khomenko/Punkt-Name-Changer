@@ -19,8 +19,9 @@ Core behavior:
 - The standalone IPKT coordinate duplicate checker compares every valid `YXZ`
   record by Y/X coordinates, defaults to a `0.10 m` tolerance for each
   component, groups identical or probable near-duplicate matches, displays
-  point IDs and source line references, and exports a TXT report without
-  modifying or uploading the source file.
+  point IDs and source line references, and exports a detailed TXT report with
+  generated date/time, source filename, duplicate groups, and direct matching
+  pairs without modifying or uploading the source file.
 - The standalone IPKT group path renamer discovers arbitrary point families by
   their final numeric index, lets each family be configured as `P`, `G`, `Q`,
   or `QL`, and exports both normalized path IDs and final MQ names using the
@@ -34,7 +35,10 @@ Core behavior:
   coordinate-derived MQ skips for a large span or consecutive run of large
   spans only when short measured approaches bound the complete span on both
   sides. A live MQ line schematic uses the same export plan to show measured,
-  missing, and bridge sections for every enabled group.
+  missing, and bridge sections for every enabled group. During group discovery,
+  it also checks every valid `YXZ` record for duplicate Y/X coordinates,
+  displays the results below the configuration, and exports a separate detailed
+  duplicate TXT log.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of
