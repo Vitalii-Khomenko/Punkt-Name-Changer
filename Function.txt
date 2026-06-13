@@ -46,9 +46,10 @@ Core behavior:
   automatic coordinate-anchored EX mapping. Its first point starts at the
   nearest configured `P` or `G` MQ. Four EX positions normally share an MQ;
   the MQ immediately before and after each detected large bridge gap uses two
-  positions, with one MQ reserved across the bridge. The source-family prefix
-  is preserved, skipped EX indexes keep their position, and export fails
-  instead of falling back to `MQ01` when no coordinate anchor exists.
+  positions, with one MQ reserved across the bridge. The editable final prefix
+  defaults to the source-family prefix and updates both EX exports and the live
+  proposed MQ schematic. Skipped EX indexes keep their position, and export
+  fails instead of falling back to `MQ01` when no coordinate anchor exists.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. IDs explicitly containing `.EX.` always use

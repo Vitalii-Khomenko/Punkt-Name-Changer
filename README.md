@@ -63,11 +63,13 @@ reserved across the span. For the real `20260613_YXZ.ipkt` coordinates this
 produces `2505.1.EX.01 -> 2505.1.MQ19-1`, `EX.14 -> MQ22-2`,
 `EX.15/16 -> MQ24-1/2`, and `EX.17 -> MQ25-1`.
 
-Automatic EX rows preserve their source-family prefix, disable irrelevant
-manual path/start controls, and require at least one enabled, configured `P` or
-`G` group with valid coordinates. If no coordinate anchor exists, export stops
-with an error instead of incorrectly starting EX numbering at `MQ01`. Skipped
-EX source indexes retain their original position.
+Automatic EX rows default the editable Final base prefix to their source-family
+prefix, disable irrelevant manual type/path/start controls, and require at least
+one enabled, configured `P` or `G` group with valid coordinates. Changing the
+Final base prefix changes the proposed EX MQ names in both exports and the live
+schematic. If no coordinate anchor exists, export stops with an error instead of
+incorrectly starting EX numbering at `MQ01`. Skipped EX source indexes retain
+their original position.
 
 The final names follow the same MQ and suffix rules as `Punkt-Name-Changer.html`.
 The normalized output applies the selected target paths, such as `P02.001` or
@@ -98,8 +100,9 @@ and previews keep enough space to read. The compact Type selector contains only
 Below the configuration table, a live horizontally scrollable MQ line schematic
 shows each enabled group. Solid blue nodes are measured MQ sections, hollow red
 nodes are inferred missing sections, and orange nodes mark recognized bridge
-sections. The schematic uses the same MQ plan as final export and redraws when
-configuration values change.
+sections. For automatic EX groups it also shows the proposed editable output
+prefix and the MQ reserved across each detected bridge. The schematic uses the
+same MQ plan as final export and redraws when configuration values change.
 
 The browser processes and replaces raw ASCII fixed-width fields only, preserving
 the remaining IPKT bytes and alignment.

@@ -207,7 +207,7 @@
         </div>
         <section class="schematic" aria-labelledby="schematicHeading">
             <h3 id="schematicHeading">MQ Line Schematic</h3>
-            <p class="help">A simple live view of measured MQ sections, inferred missing sections, and recognized bridge spans.</p>
+            <p class="help">A live view of proposed MQ names, measured sections, inferred missing sections, and recognized or reserved bridge spans.</p>
             <div class="schematic-legend">
                 <span class="legend-item"><span class="legend-dot"></span>Measured MQ</span>
                 <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ</span>
@@ -777,7 +777,8 @@
                 bridges.push({
                     afterSourceIndex: chunk.sourceIndexes[chunk.sourceIndexes.length - 1],
                     beforeSourceIndex: chunks[chunkIndex + 1]?.sourceIndexes[0] ?? null,
-                    distance: chunk.bridgeAfterDistance
+                    distance: chunk.bridgeAfterDistance,
+                    reservedMqIndex: mqIndex + 1
                 });
                 mqIndex += 2;
             } else {
@@ -907,7 +908,7 @@
     function buildExplicitExName(group, config, record) {
         const mapping = config.exPlan?.mappingByRecord.get(record);
         if (!mapping) throw new Error(`Line ${record.lineNumber}: automatic EX mapping is unavailable.`);
-        return `${group.exBaseGroup}.MQ${mapping.mqIndex}-${mapping.position}`;
+        return `${config.basePrefix}.MQ${mapping.mqIndex}-${mapping.position}`;
     }
 
     function createCell(row, content) {
@@ -929,7 +930,7 @@
 
     function updateRowPreview(row) {
         const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
-        const config = getRowConfig(row, !group?.isExplicitEx);
+        const config = getRowConfig(row);
         const preview = row.querySelector('[data-role="preview"]');
         if (!config || !group) {
             preview.textContent = 'Complete configuration';
@@ -937,7 +938,7 @@
         }
         if (group.isExplicitEx) {
             preview.classList.add('automatic-ex');
-            preview.textContent = 'Automatic EX coordinate anchor';
+            preview.textContent = `${config.basePrefix || group.exBaseGroup}.MQ... (automatic anchor)`;
             return;
         }
         preview.classList.remove('automatic-ex');
@@ -948,34 +949,53 @@
     function renderMqSchematic() {
         mqSchematic.replaceChildren();
         let renderedGroups = 0;
+        const previewConfigs = new Map();
 
         Array.from(groupsBody.querySelectorAll('tr')).forEach((row) => {
             if (!row.querySelector('[data-role="enabled"]').checked) return;
             const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
-            if (group?.isExplicitEx) return;
-            const config = getRowConfig(row, false);
+            const config = getRowConfig(row, !group?.isExplicitEx);
+            if (group && config) previewConfigs.set(group.sourceGroup, config);
+        });
+
+        Array.from(groupsBody.querySelectorAll('tr')).forEach((row) => {
+            if (!row.querySelector('[data-role="enabled"]').checked) return;
+            const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+            const config = previewConfigs.get(group?.sourceGroup);
             if (
                 !group || !config || config.startMq < 1 || config.startSourceIndex < 1 ||
                 config.normalStep <= 0 || config.bridgeMinDistance <= 0 || config.bridgeApproachMax <= 0
             ) return;
 
-            const plan = getCoordinateAwareMqPlan(group, config);
-            config.mqBySection = plan.mqBySection;
-            const sections = buildSections(group, config);
             const measuredMqs = new Set();
             const bridgeMqs = new Set();
+            let bridgeCount = 0;
+            let displayName = `${group.sourceGroup} -> ${config.type}${pad2(config.pathNumber)}`;
 
-            sections.forEach((section) => {
-                const mqIndex = plan.mqBySection.get(section.sectionIndex);
-                if (Number.isInteger(mqIndex)) measuredMqs.add(mqIndex);
-            });
-            plan.bridges.forEach((bridge) => {
+            if (group.isExplicitEx) {
+                const exPlan = getExplicitExPlan(group, config, previewConfigs);
+                if (exPlan.error || !config.basePrefix) return;
+                exPlan.mappingByRecord.forEach((mapping) => measuredMqs.add(mapping.mqIndex));
+                exPlan.bridges.forEach((bridge) => bridgeMqs.add(bridge.reservedMqIndex));
+                bridgeCount = exPlan.bridges.length;
+                displayName = `${group.sourceGroup} -> ${config.basePrefix}.MQ...`;
+            } else {
+                const plan = getCoordinateAwareMqPlan(group, config);
+                config.mqBySection = plan.mqBySection;
+                const sections = buildSections(group, config);
                 sections.forEach((section) => {
-                    if (section.sectionIndex < bridge.fromSectionIndex || section.sectionIndex > bridge.toSectionIndex) return;
                     const mqIndex = plan.mqBySection.get(section.sectionIndex);
-                    if (Number.isInteger(mqIndex)) bridgeMqs.add(mqIndex);
+                    if (Number.isInteger(mqIndex)) measuredMqs.add(mqIndex);
                 });
-            });
+                plan.bridges.forEach((bridge) => {
+                    sections.forEach((section) => {
+                        if (section.sectionIndex < bridge.fromSectionIndex || section.sectionIndex > bridge.toSectionIndex) return;
+                        const mqIndex = plan.mqBySection.get(section.sectionIndex);
+                        if (Number.isInteger(mqIndex)) bridgeMqs.add(mqIndex);
+                    });
+                });
+                bridgeCount = plan.bridges.length;
+            }
             if (measuredMqs.size === 0) return;
 
             const minimumMq = Math.min(...measuredMqs);
@@ -987,9 +1007,9 @@
             const title = document.createElement('div');
             title.className = 'schematic-title';
             const name = document.createElement('span');
-            name.textContent = `${group.sourceGroup} -> ${config.type}${pad2(config.pathNumber)}`;
+            name.textContent = displayName;
             const summary = document.createElement('span');
-            summary.textContent = `MQ${pad2(minimumMq)}..MQ${pad2(maximumMq)} | measured ${measuredMqs.size} | missing ${missingCount} | bridges ${plan.bridges.length}`;
+            summary.textContent = `MQ${pad2(minimumMq)}..MQ${pad2(maximumMq)} | measured ${measuredMqs.size} | missing ${missingCount} | bridges ${bridgeCount}`;
             title.append(name, summary);
 
             const lineWrap = document.createElement('div');
@@ -1002,7 +1022,7 @@
                 if (!measuredMqs.has(mqIndex)) node.classList.add('missing');
                 if (bridgeMqs.has(mqIndex)) node.classList.add('bridge');
                 node.title = bridgeMqs.has(mqIndex)
-                    ? `MQ${pad2(mqIndex)}: measured bridge section`
+                    ? `MQ${pad2(mqIndex)}: ${measuredMqs.has(mqIndex) ? 'measured bridge section' : 'reserved bridge MQ'}`
                     : measuredMqs.has(mqIndex)
                         ? `MQ${pad2(mqIndex)}: measured section`
                         : `MQ${pad2(mqIndex)}: inferred missing section`;
@@ -1057,7 +1077,8 @@
             pathNumber.max = '10';
             createCell(row, pathNumber);
 
-            const basePrefix = createInput('text', 'basePrefix', document.getElementById('defaultBasePrefix').value.trim(), 'base-prefix');
+            const defaultPrefix = document.getElementById('defaultBasePrefix').value.trim();
+            const basePrefix = createInput('text', 'basePrefix', group.isExplicitEx ? (defaultPrefix || group.exBaseGroup) : defaultPrefix, 'base-prefix');
             basePrefix.placeholder = 'e.g. 3560';
             createCell(row, basePrefix);
 
@@ -1099,9 +1120,9 @@
             createCell(row, preview);
 
             if (group.isExplicitEx) {
+                basePrefix.title = 'Editable output prefix for the automatic EX MQ names.';
                 type.disabled = true;
                 pathNumber.disabled = true;
-                basePrefix.disabled = true;
                 startMq.disabled = true;
                 startSourceIndex.disabled = true;
                 coordinateGapCheck.disabled = true;
@@ -1161,6 +1182,11 @@
                 return;
             }
             if (group.isExplicitEx) {
+                if (!config.basePrefix) {
+                    errors.push(`${group.sourceGroup}: final base prefix is required.`);
+                } else if (!SAFE_NAME_COMPONENT_PATTERN.test(config.basePrefix)) {
+                    errors.push(`${group.sourceGroup}: final base prefix contains invalid characters.`);
+                }
                 if (config.bridgeMinDistance <= 0) {
                     errors.push(`${group.sourceGroup}: bridge minimum distance must be greater than 0 m.`);
                 }
@@ -1271,10 +1297,11 @@
                 lines.push(
                     `${sourceGroup} -> automatic EX mapping | coordinate anchor ${config.exPlan.anchor.sourceGroup} MQ${config.exPlan.anchor.mqIndex} | anchor distance ${config.exPlan.anchor.distance.toFixed(3)} m | four positions normally, two positions beside bridges`
                 );
+                lines.push(`  EX output prefix: ${config.basePrefix}`);
                 lines.push(`  Detected EX bridges: ${config.exPlan.bridges.length}`);
                 config.exPlan.bridges.forEach((bridge, bridgeIndex) => {
                     lines.push(
-                        `  EX bridge ${bridgeIndex + 1}: after EX.${pad2(bridge.afterSourceIndex)} before EX.${pad2(bridge.beforeSourceIndex)} | distance ${bridge.distance.toFixed(3)} m | one MQ number reserved`
+                        `  EX bridge ${bridgeIndex + 1}: after EX.${pad2(bridge.afterSourceIndex)} before EX.${pad2(bridge.beforeSourceIndex)} | distance ${bridge.distance.toFixed(3)} m | reserved MQ${pad2(bridge.reservedMqIndex)}`
                     );
                 });
                 return;
