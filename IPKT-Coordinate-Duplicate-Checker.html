@@ -300,7 +300,7 @@
 <main>
     <h1>IPKT Coordinate Duplicate Checker</h1>
     <p class="lead">
-        Find different Leica point records that share the same Y/X coordinates.
+        Find different Leica point records with identical or probably matching Y/X coordinates.
         The file stays local in this browser tab and is never uploaded or modified.
     </p>
 
@@ -314,8 +314,8 @@
             </div>
             <div>
                 <label for="coordinateTolerance">Y/X tolerance in meters</label>
-                <input id="coordinateTolerance" type="number" min="0" max="1" step="0.001" value="0">
-                <p class="help">Use 0 for identical coordinates, or a small value such as 0.001 for near-duplicates.</p>
+                <input id="coordinateTolerance" type="number" min="0" max="1" step="0.001" value="0.1">
+                <p class="help">The default 0.10 m flags probable matches when each Y/X component differs by up to 10 cm. Use 0 for identical coordinates only.</p>
             </div>
         </div>
         <div class="action-row">
@@ -358,6 +358,8 @@
     'use strict';
 
     const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+    const DEFAULT_COORDINATE_TOLERANCE = 0.1;
+    const COORDINATE_COMPARISON_EPSILON = 1e-9;
     const fileInput = document.getElementById('ipktFile');
     const toleranceInput = document.getElementById('coordinateTolerance');
     const analyzeButton = document.getElementById('analyzeButton');
@@ -483,8 +485,8 @@
                     nearby.forEach((candidateIndex) => {
                         const candidate = records[candidateIndex];
                         if (
-                            Math.abs(record.y - candidate.y) <= tolerance &&
-                            Math.abs(record.x - candidate.x) <= tolerance
+                            Math.abs(record.y - candidate.y) <= tolerance + COORDINATE_COMPARISON_EPSILON &&
+                            Math.abs(record.x - candidate.x) <= tolerance + COORDINATE_COMPARISON_EPSILON
                         ) {
                             disjointSet.union(recordIndex, candidateIndex);
                         }
@@ -694,7 +696,7 @@
 
     function clearAnalysis() {
         fileInput.value = '';
-        toleranceInput.value = '0';
+        toleranceInput.value = String(DEFAULT_COORDINATE_TOLERANCE);
         latestAnalysis = null;
         exportButton.disabled = true;
         summaryCard.classList.add('hidden');

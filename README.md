@@ -17,8 +17,9 @@ identical Y/X coordinates.
 
 1. Open the HTML file in a browser.
 2. Select one `.ipkt` file.
-3. Keep tolerance at `0` for identical numeric Y/X values, or enter a small
-   component tolerance such as `0.001` m to find near-duplicates.
+3. Keep the default `0.10` m component tolerance to flag probable matches when
+   each Y/X value differs by up to 10 cm, or enter `0` for identical numeric
+   Y/X values only.
 4. Press **Find Duplicate Coordinates**.
 5. Review the grouped point IDs, Leica `LfNr`, file lines, coordinates, and
    heights. Optionally export the result as a TXT report.

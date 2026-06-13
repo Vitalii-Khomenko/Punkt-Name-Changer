@@ -16,9 +16,10 @@ Source of truth:
 Core behavior:
 
 - The standalone IPKT coordinate duplicate checker compares every valid `YXZ`
-  record by Y/X coordinates, groups identical or component-tolerance matches,
-  displays point IDs and source line references, and exports a TXT report
-  without modifying or uploading the source file.
+  record by Y/X coordinates, defaults to a `0.10 m` tolerance for each
+  component, groups identical or probable near-duplicate matches, displays
+  point IDs and source line references, and exports a TXT report without
+  modifying or uploading the source file.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of
