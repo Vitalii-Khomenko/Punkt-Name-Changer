@@ -12,23 +12,25 @@ from pathlib import Path
 TARGET_PATTERN_RE = re.compile(r"^(?:QL|[GPQ])(?:0[1-9]|10)$")
 
 
-def get_ex_mq_index(start_mq: int, group_index: int) -> int:
-    """Return the EX MQ number while reserving MQ23."""
-    mq_index = start_mq + group_index
-    return mq_index + 1 if start_mq <= 23 <= mq_index else mq_index
+def get_bridge_ex_mapping(ex_index: int) -> tuple[int, int]:
+    """Return the fixed MQ and position used for every explicit EX point."""
+    if ex_index <= 14:
+        return 19 + (ex_index - 1) // 4, (ex_index - 1) % 4 + 1
+    if ex_index <= 16:
+        return 24, ex_index - 14
+    return 25 + (ex_index - 17) // 4, (ex_index - 17) % 4 + 1
 
 
 def normalize_pipe_content(
     content: bytes,
     source_prefix: str = "101",
     target_pattern: str = "P01",
-    ex_start_mq: int = 19,
 ) -> tuple[bytes, int, int]:
     """Replace numeric and EX IDs in Leica pipe records without reformatting."""
     source_prefix_bytes = source_prefix.encode("ascii")
     target_pattern_bytes = target_pattern.upper().encode("ascii")
     source_id_re = re.compile(rb"^" + re.escape(source_prefix_bytes) + rb"\.(\d{1,3})$")
-    ex_id_re = re.compile(rb"^" + re.escape(source_prefix_bytes) + rb"\.EX\.(\d{1,3})$")
+    ex_id_re = re.compile(rb"^([A-Za-z0-9._-]+)\.EX\.(\d{1,3})$")
 
     normalized_lines: list[bytes] = []
     numeric_replacement_count = 0
@@ -53,9 +55,7 @@ def normalize_pipe_content(
             normalized_lines.append(line)
             continue
 
-        match = numeric_match or ex_match
-        assert match is not None
-        index = int(match.group(1))
+        index = int(numeric_match.group(1) if numeric_match else ex_match.group(2))
         if index < 1 or index > 998:
             normalized_lines.append(line)
             continue
@@ -64,10 +64,10 @@ def normalize_pipe_content(
             new_id = target_pattern_bytes + b"." + f"{index:03d}".encode("ascii")
             numeric_replacement_count += 1
         else:
-            mq_index = get_ex_mq_index(ex_start_mq, (index - 1) // 4)
-            group_position = (index - 1) % 4 + 1
+            assert ex_match is not None
+            mq_index, group_position = get_bridge_ex_mapping(index)
             new_id = (
-                source_prefix_bytes
+                ex_match.group(1)
                 + b".MQ"
                 + str(mq_index).encode("ascii")
                 + b"-"
@@ -117,12 +117,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Target PunktNameChanger family and path. Default: P01.",
     )
     parser.add_argument(
-        "--ex-start-mq",
-        type=int,
-        default=19,
-        help="Starting MQ number for source-prefix.EX.01 groups. Default: 19.",
-    )
-    parser.add_argument(
         "--in-place",
         action="store_true",
         help="Replace the input file and create a .bak backup.",
@@ -138,8 +132,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--output and --in-place cannot be used together.")
     if not re.fullmatch(r"\d+", args.source_prefix):
         parser.error("--source-prefix must contain digits only.")
-    if args.ex_start_mq < 1:
-        parser.error("--ex-start-mq must be at least 1.")
     args.target_pattern = args.target_pattern.upper()
     if not TARGET_PATTERN_RE.fullmatch(args.target_pattern):
         parser.error(
@@ -180,7 +172,6 @@ def main(argv: list[str] | None = None) -> int:
         original,
         source_prefix=args.source_prefix,
         target_pattern=args.target_pattern,
-        ex_start_mq=args.ex_start_mq,
     )
 
     if args.in_place:
@@ -192,10 +183,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{args.source_prefix}.N -> {args.target_pattern}.NNN"
     )
     print(
-        f"Normalized {ex_replacement_count} EX point IDs: "
-        f"{args.source_prefix}.EX.NN -> {args.source_prefix}.MQ{args.ex_start_mq}-1..4 groups"
+        f"Normalized {ex_replacement_count} explicit EX point IDs from all source families "
+        "with fixed bridge-interruption MQ groups"
     )
-    print("Reserved EX MQ number: 23")
+    print("Explicit EX rule: EX.14 -> MQ22-2, EX.15 -> MQ24-1, EX.16 -> MQ24-2, EX.17 -> MQ25-1")
     print(f"Output: {output_path}")
     if args.in_place:
         print(f"Backup: {backup_path}")

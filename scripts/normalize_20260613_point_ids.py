@@ -1,4 +1,4 @@
-"""Normalize the multi-family point IDs used by the 20260613 Leica file."""
+"""Normalize four numeric families and every explicitly marked EX point."""
 
 from __future__ import annotations
 
@@ -15,11 +15,11 @@ FAMILY_MAP = {
     b"2504.1": b"P05",
 }
 SOURCE_ID_RE = re.compile(rb"^(2505\.1|2500\.1|2504\.2|2504\.1)\.(\d{1,3})$")
-EX_ID_RE = re.compile(rb"^(2505\.1|2500\.1|2504\.2|2504\.1)\.EX\.(\d{1,3})$")
+EX_ID_RE = re.compile(rb"^([A-Za-z0-9._-]+)\.EX\.(\d{1,3})$")
 
 
-def get_bridge_ex_name(source_family: bytes, ex_index: int) -> bytes:
-    """Map one EX index around the bridge interruption."""
+def get_bridge_ex_mapping(ex_index: int) -> tuple[int, int]:
+    """Return the fixed MQ and position for an explicitly marked EX point."""
     if ex_index <= 14:
         mq_index = 19 + (ex_index - 1) // 4
         position = (ex_index - 1) % 4 + 1
@@ -30,6 +30,12 @@ def get_bridge_ex_name(source_family: bytes, ex_index: int) -> bytes:
         mq_index = 25 + (ex_index - 17) // 4
         position = (ex_index - 17) % 4 + 1
 
+    return mq_index, position
+
+
+def get_bridge_ex_name(source_family: bytes, ex_index: int) -> bytes:
+    """Map one EX ID while preserving its source-family prefix."""
+    mq_index, position = get_bridge_ex_mapping(ex_index)
     return (
         source_family
         + b".MQ"
@@ -40,7 +46,7 @@ def get_bridge_ex_name(source_family: bytes, ex_index: int) -> bytes:
 
 
 def normalize_pipe_content(content: bytes) -> tuple[bytes, int, int]:
-    """Normalize supported numeric and EX IDs without changing other bytes."""
+    """Normalize supported numeric IDs and every explicit EX ID."""
     output_lines: list[bytes] = []
     numeric_count = 0
     ex_count = 0
@@ -101,7 +107,7 @@ def default_output_path(input_path: Path) -> Path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Normalize the four point families and bridge EX sequence in 20260613_YXZ.ipkt."
+        description="Normalize four numeric point families and every explicit EX bridge sequence."
     )
     parser.add_argument("input", type=Path, help="Input .imes or .ipkt file.")
     parser.add_argument(
@@ -137,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     output_path.write_bytes(normalized)
 
     print(f"Normalized {numeric_count} numeric point IDs across four source families.")
-    print(f"Normalized {ex_count} EX point IDs with the bridge MQ interruption.")
+    print(f"Normalized {ex_count} explicit EX point IDs with the fixed bridge MQ interruption.")
     print(f"Output: {output_path}")
     return 0
 

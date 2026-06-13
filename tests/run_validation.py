@@ -347,6 +347,8 @@ class RenamingRegressionTests(unittest.TestCase):
             b" 000008|  |      |  |      |      |        2505.1.EX.17|YXZ| 15.00000| 16.00000|\r\n"
             b" 000009|  |      |  |      |      |        2505.1.EX.20|YXZ| 17.00000| 18.00000|\r\n"
             b" 000010|  |      |  |      |      |        2505.1.EX.21|YXZ| 19.00000| 20.00000|\r\n"
+            b" 000011|  |      |  |      |      |           101.EX.09|YXZ| 21.00000| 22.00000|\r\n"
+            b" 000012|  |      |  |      |      |              101.09|YXZ| 23.00000| 24.00000|\r\n"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -381,9 +383,12 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn(b"       2505.1.MQ25-1|YXZ| 15.00000| 16.00000|", normalized)
         self.assertIn(b"       2505.1.MQ25-4|YXZ| 17.00000| 18.00000|", normalized)
         self.assertIn(b"       2505.1.MQ26-1|YXZ| 19.00000| 20.00000|", normalized)
+        self.assertIn(b"          101.MQ21-1|YXZ| 21.00000| 22.00000|", normalized)
+        self.assertIn(b"              101.09|YXZ| 23.00000| 24.00000|", normalized)
         self.assertNotIn(b"2505.1.EX.", normalized)
+        self.assertNotIn(b"101.EX.09", normalized)
         self.assertIn("Normalized 4 numeric point IDs", result.stdout)
-        self.assertIn("Normalized 6 EX point IDs", result.stdout)
+        self.assertIn("Normalized 7 explicit EX point IDs", result.stdout)
 
     def test_gleis_prefix_normalizer_preserves_suffix_and_layout(self) -> None:
         source = (
@@ -448,6 +453,7 @@ class RenamingRegressionTests(unittest.TestCase):
             b" 000005|  |      |  |      |      |           101.EX.05|YXZ| 9.00000| 10.00000|\r\n"
             b" 000006|  |      |  |      |      |           101.EX.16|YXZ| 11.00000| 12.00000|\r\n"
             b" 000007|  |      |  |      |      |           101.EX.17|YXZ| 13.00000| 14.00000|\r\n"
+            b" 000008|  |      |  |      |      |           205.EX.09|YXZ| 15.00000| 16.00000|\r\n"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -477,12 +483,13 @@ class RenamingRegressionTests(unittest.TestCase):
         self.assertIn(b"          101.MQ19-1|YXZ| 5.00000| 6.00000|", normalized)
         self.assertIn(b"          101.MQ19-4|YXZ| 7.00000| 8.00000|", normalized)
         self.assertIn(b"          101.MQ20-1|YXZ| 9.00000| 10.00000|", normalized)
-        self.assertIn(b"          101.MQ22-4|YXZ| 11.00000| 12.00000|", normalized)
-        self.assertIn(b"          101.MQ24-1|YXZ| 13.00000| 14.00000|", normalized)
+        self.assertIn(b"          101.MQ24-2|YXZ| 11.00000| 12.00000|", normalized)
+        self.assertIn(b"          101.MQ25-1|YXZ| 13.00000| 14.00000|", normalized)
+        self.assertIn(b"          205.MQ21-1|YXZ| 15.00000| 16.00000|", normalized)
         self.assertNotIn(b"101.MQ23-", normalized)
         self.assertIn("Normalized 2 numeric point IDs", result.stdout)
-        self.assertIn("Normalized 5 EX point IDs", result.stdout)
-        self.assertIn("Reserved EX MQ number: 23", result.stdout)
+        self.assertIn("Normalized 6 explicit EX point IDs from all source families", result.stdout)
+        self.assertIn("Explicit EX rule: EX.14 -> MQ22-2", result.stdout)
 
     def test_partial_ipkt_source_gap_preserves_mq_pair_numbers(self) -> None:
         content = build_sample_ipkt()
@@ -720,6 +727,20 @@ class ProjectInvariantTests(unittest.TestCase):
         self.assertNotRegex(renamer, r'<script\s+src=')
         self.assertNotRegex(renamer, r'<link[^>]+href=')
         self.assertIsNone(CYRILLIC_RE.search(renamer))
+
+    def test_explicit_ex_mapping_is_shared_and_ex_only(self) -> None:
+        general_script = NORMALIZE_SCRIPT_PATH.read_text(encoding="utf-8")
+        multi_family_script = MULTI_FAMILY_SCRIPT_PATH.read_text(encoding="utf-8")
+
+        for source in [general_script, multi_family_script]:
+            self.assertIn("def get_bridge_ex_mapping(ex_index: int)", source)
+            self.assertIn("if ex_index <= 14:", source)
+            self.assertIn("if ex_index <= 16:", source)
+            self.assertIn("25 + (ex_index - 17) // 4", source)
+
+        self.assertIn(r'EX_ID_RE = re.compile(rb"^([A-Za-z0-9._-]+)\.EX\.(\d{1,3})$")', multi_family_script)
+        self.assertIn(r'ex_id_re = re.compile(rb"^([A-Za-z0-9._-]+)\.EX\.(\d{1,3})$")', general_script)
+        self.assertIn("numeric_match = SOURCE_ID_RE.fullmatch(point_id)", multi_family_script)
 
     def test_project_text_files_do_not_contain_cyrillic(self) -> None:
         for path in [README_PATH, MISSION_PATH, FUNCTIONS_PATH, RULES_PATH, AGENTS_PATH, VALIDATION_PATH]:

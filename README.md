@@ -136,24 +136,25 @@ python scripts/normalize_leica_point_ids.py 20260612_YXZ.ipkt
 ```
 
 This writes `20260612_YXZ_normalized.ipkt`. It converts `101.1` through
-`101.998` into `P01.001` through `P01.998`. It also converts the `101.EX.NN`
-series into groups of four, starting at MQ 19:
+`101.998` into `P01.001` through `P01.998`. IDs containing the explicit `.EX.`
+marker always use the fixed bridge-interruption calculation:
 
 | Source IDs | Normalized IDs |
 | --- | --- |
 | `101.EX.01..04` | `101.MQ19-1..4` |
 | `101.EX.05..08` | `101.MQ20-1..4` |
 | `101.EX.09..12` | `101.MQ21-1..4` |
-| `101.EX.13..16` | `101.MQ22-1..4` |
-| `101.EX.17..20` | `101.MQ24-1..4` |
+| `101.EX.13..14` | `101.MQ22-1..2` |
+| `101.EX.15..16` | `101.MQ24-1..2` |
+| `101.EX.17..20` | `101.MQ25-1..4` |
 
-`MQ23` is reserved, so the EX sequence jumps from `MQ22` directly to `MQ24`.
-
-Set another EX starting MQ when needed:
-
-```bash
-python scripts/normalize_leica_point_ids.py input.ipkt --ex-start-mq 25
-```
+For example, `101.EX.09` always becomes `101.MQ21-1`. The rule applies only
+when `.EX.` is present; an ordinary point such as `101.09` continues through
+the configured numeric-family mapping. Explicit EX IDs from other families in
+the same file use the rule too, while preserving their own prefix. The EX
+sequence ends the pre-bridge section at `MQ22-2`, skips `MQ23`, uses
+`MQ24-1/2` immediately after the bridge, and resumes full four-position groups
+at `MQ25-1`.
 
 Use explicit mappings for other numeric series:
 
@@ -208,8 +209,10 @@ Numeric point mapping:
 | `2504.2.NN` | `P04.NNN` |
 | `2504.1.NN` | `P05.NNN` |
 
-Each source family's EX points keep their source family prefix. EX points use
-four positions per MQ through `MQ22-2`, then jump across the bridge:
+Every point ID containing the explicit `.EX.` marker uses this calculation,
+even when its source family is not one of the four numeric families above.
+EX points keep their source-family prefix and use four positions per MQ through
+`MQ22-2`, then jump across the bridge:
 
 ```text
 EX.14 -> MQ22-2

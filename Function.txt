@@ -44,9 +44,10 @@ Core behavior:
   TXT log.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
-  preserving pipe-file alignment. It also converts `101.EX.NN` into groups of
-  four such as `101.MQ19-1..4`, with a configurable starting MQ and MQ23
-  reserved from the EX sequence.
+  preserving pipe-file alignment. IDs explicitly containing `.EX.` always use
+  the fixed bridge-interruption calculation: `EX.14 -> MQ22-2`,
+  `EX.15 -> MQ24-1`, `EX.16 -> MQ24-2`, and `EX.17 -> MQ25-1`.
+  This special calculation does not affect ordinary numeric point IDs.
 - The separate `scripts/normalize_gleis_point_prefix.py` mini-script converts
   Gleis IDs into three-digit project format while preserving the fixed-width
   pipe-file layout. Source pairs normally advance by two MQ positions, but
@@ -55,8 +56,9 @@ Core behavior:
 - The dedicated `scripts/normalize_20260613_point_ids.py` mini-script maps
   prism families `2505.1` to `P02`, `2500.1` to `P03`, `2504.2` to `P04`,
   and `2504.1` to `P05`.
-  Its EX sequences end the first section at `MQ22-2`, jump to `MQ24-1/2`,
-  and resume four-position groups from `MQ25-1`.
+  Every explicit EX sequence, including a different family such as `101.EX`,
+  ends the first section at `MQ22-2`, jumps to `MQ24-1/2`, and resumes
+  four-position groups from `MQ25-1`.
 - Supported point IDs use dot format only: `G01.001..G10.998`,
   `P01.001..P10.998`, `Q01.001..Q10.998`, and
   `QL01.001..QL10.998`.
