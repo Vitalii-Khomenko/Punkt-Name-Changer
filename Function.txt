@@ -30,7 +30,10 @@ Core behavior:
   height correction. Its enabled-by-default coordinate gap check compares
   consecutive section centers and advances by the larger of the source-index
   step or `round(distance / configured normal step)`, preserving MQ numbers
-  when measured sections were skipped.
+  when measured sections were skipped. Optional bridge detection suppresses
+  coordinate-derived MQ skips for a large span or consecutive run of large
+  spans only when short measured approaches bound the complete span on both
+  sides.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of

@@ -58,6 +58,14 @@ section after `MQ01` becomes `MQ03`. The inferred advance is
 `round(distance / normal step)` and never reduces a larger source-index-derived
 advance. The TXT report lists every coordinate-inferred gap.
 
+An optional bridge-detection checkbox prevents large bridge spans from being
+mistaken for missing MQ sections. With the default bridge settings, a single
+span or consecutive run of spans at least `9.0 m` is recognized as a bridge
+only when the complete span has measured approaches no longer than `2.5 m`
+immediately before and after it. Bridge detection is disabled by default and
+lists every recognized bridge in the TXT report. A large unbounded jump still
+counts as a missing-measurement gap.
+
 The browser processes and replaces raw ASCII fixed-width fields only, preserving
 the remaining IPKT bytes and alignment.
 

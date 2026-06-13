@@ -130,6 +130,7 @@
         <p class="help">
             MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
             With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
+            Optional bridge detection treats one or more large spans as a bridge only when short approaches exist immediately before and after the complete span.
             P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
             Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
         </p>
@@ -147,6 +148,9 @@
                     <th>Start source index</th>
                     <th>Coordinate gap check</th>
                     <th>Normal step (m)</th>
+                    <th>Bridge detection</th>
+                    <th>Bridge min (m)</th>
+                    <th>Bridge approach max (m)</th>
                     <th>Preview</th>
                 </tr>
                 </thead>
@@ -361,18 +365,67 @@
         return Math.hypot(right.y - left.y, right.x - left.x);
     }
 
+    function detectBridgeTransitions(sections, config) {
+        const bridgeTransitionIndexes = new Set();
+        const bridges = [];
+        if (!config.coordinateGapCheck || !config.bridgeDetection || sections.length < 4) return { bridgeTransitionIndexes, bridges };
+
+        const distances = sections.slice(1).map((section, index) => getSectionDistance(sections[index], section));
+        let index = 0;
+        while (index < distances.length) {
+            if (distances[index] === null || distances[index] < config.bridgeMinDistance) {
+                index += 1;
+                continue;
+            }
+
+            const runStart = index;
+            while (
+                index + 1 < distances.length &&
+                distances[index + 1] !== null &&
+                distances[index + 1] >= config.bridgeMinDistance
+            ) {
+                index += 1;
+            }
+            const runEnd = index;
+            const approachBefore = runStart > 0 ? distances[runStart - 1] : null;
+            const approachAfter = runEnd + 1 < distances.length ? distances[runEnd + 1] : null;
+            const isBridge = (
+                approachBefore !== null &&
+                approachAfter !== null &&
+                approachBefore <= config.bridgeApproachMax &&
+                approachAfter <= config.bridgeApproachMax
+            );
+
+            if (isBridge) {
+                for (let transitionIndex = runStart; transitionIndex <= runEnd; transitionIndex += 1) {
+                    bridgeTransitionIndexes.add(transitionIndex);
+                }
+                bridges.push({
+                    fromSectionIndex: sections[runStart].sectionIndex,
+                    toSectionIndex: sections[runEnd + 1].sectionIndex,
+                    distances: distances.slice(runStart, runEnd + 1),
+                    approachBefore,
+                    approachAfter
+                });
+            }
+            index += 1;
+        }
+        return { bridgeTransitionIndexes, bridges };
+    }
+
     function getCoordinateAwareMqPlan(group, config) {
         const sections = buildSections(group, config);
         const startSectionIndex = Math.floor((config.startSourceIndex - 1) / getTypeSize(config.type));
         const mqBySection = new Map([[startSectionIndex, config.startMq]]);
         const gaps = [];
+        const bridgePlan = detectBridgeTransitions(sections, config);
 
         for (let index = 1; index < sections.length; index += 1) {
             const left = sections[index - 1];
             const right = sections[index];
             const sourceAdvance = right.sectionIndex - left.sectionIndex;
             const distance = getSectionDistance(left, right);
-            const coordinateAdvance = config.coordinateGapCheck && distance !== null
+            const coordinateAdvance = config.coordinateGapCheck && distance !== null && !bridgePlan.bridgeTransitionIndexes.has(index - 1)
                 ? Math.max(1, Math.round(distance / config.normalStep))
                 : 1;
             const mqAdvance = Math.max(sourceAdvance, coordinateAdvance);
@@ -389,7 +442,7 @@
         }
 
         const anchorPosition = sections.findIndex((section) => section.sectionIndex >= startSectionIndex);
-        if (anchorPosition === -1) return { mqBySection, gaps };
+        if (anchorPosition === -1) return { mqBySection, gaps, bridges: bridgePlan.bridges };
         mqBySection.set(sections[anchorPosition].sectionIndex, config.startMq + sections[anchorPosition].sectionIndex - startSectionIndex);
 
         for (let index = anchorPosition + 1; index < sections.length; index += 1) {
@@ -397,7 +450,7 @@
             const right = sections[index];
             const sourceAdvance = right.sectionIndex - left.sectionIndex;
             const distance = getSectionDistance(left, right);
-            const coordinateAdvance = config.coordinateGapCheck && distance !== null
+            const coordinateAdvance = config.coordinateGapCheck && distance !== null && !bridgePlan.bridgeTransitionIndexes.has(index - 1)
                 ? Math.max(1, Math.round(distance / config.normalStep))
                 : 1;
             mqBySection.set(right.sectionIndex, mqBySection.get(left.sectionIndex) + Math.max(sourceAdvance, coordinateAdvance));
@@ -407,12 +460,12 @@
             const right = sections[index + 1];
             const sourceAdvance = right.sectionIndex - left.sectionIndex;
             const distance = getSectionDistance(left, right);
-            const coordinateAdvance = config.coordinateGapCheck && distance !== null
+            const coordinateAdvance = config.coordinateGapCheck && distance !== null && !bridgePlan.bridgeTransitionIndexes.has(index)
                 ? Math.max(1, Math.round(distance / config.normalStep))
                 : 1;
             mqBySection.set(left.sectionIndex, mqBySection.get(right.sectionIndex) - Math.max(sourceAdvance, coordinateAdvance));
         }
-        return { mqBySection, gaps };
+        return { mqBySection, gaps, bridges: bridgePlan.bridges };
     }
 
     function getPlannedMqIndex(config, sourceIndex) {
@@ -511,6 +564,20 @@
             normalStep.step = '0.1';
             createCell(row, normalStep);
 
+            const bridgeDetection = createInput('checkbox', 'bridgeDetection', '');
+            bridgeDetection.checked = false;
+            createCell(row, bridgeDetection);
+
+            const bridgeMinDistance = createInput('number', 'bridgeMinDistance', '9');
+            bridgeMinDistance.min = '0.1';
+            bridgeMinDistance.step = '0.1';
+            createCell(row, bridgeMinDistance);
+
+            const bridgeApproachMax = createInput('number', 'bridgeApproachMax', '2.5');
+            bridgeApproachMax.min = '0.1';
+            bridgeApproachMax.step = '0.1';
+            createCell(row, bridgeApproachMax);
+
             const preview = document.createElement('span');
             preview.dataset.role = 'preview';
             preview.className = 'preview';
@@ -531,8 +598,18 @@
         const startSourceIndex = Number.parseInt(row.querySelector('[data-role="startSourceIndex"]').value, 10);
         const coordinateGapCheck = row.querySelector('[data-role="coordinateGapCheck"]').checked;
         const normalStep = Number.parseFloat(row.querySelector('[data-role="normalStep"]').value);
-        if (!type || !Number.isInteger(pathNumber) || !basePrefix || !Number.isInteger(startMq) || !Number.isInteger(startSourceIndex) || !Number.isFinite(normalStep)) return null;
-        return { type, pathNumber, basePrefix, startMq, startSourceIndex, coordinateGapCheck, normalStep };
+        const bridgeDetection = row.querySelector('[data-role="bridgeDetection"]').checked;
+        const bridgeMinDistance = Number.parseFloat(row.querySelector('[data-role="bridgeMinDistance"]').value);
+        const bridgeApproachMax = Number.parseFloat(row.querySelector('[data-role="bridgeApproachMax"]').value);
+        if (
+            !type || !Number.isInteger(pathNumber) || !basePrefix || !Number.isInteger(startMq) ||
+            !Number.isInteger(startSourceIndex) || !Number.isFinite(normalStep) ||
+            !Number.isFinite(bridgeMinDistance) || !Number.isFinite(bridgeApproachMax)
+        ) return null;
+        return {
+            type, pathNumber, basePrefix, startMq, startSourceIndex, coordinateGapCheck, normalStep,
+            bridgeDetection, bridgeMinDistance, bridgeApproachMax
+        };
     }
 
     function collectConfigs() {
@@ -562,6 +639,12 @@
             if (config.normalStep <= 0) {
                 errors.push(`${group.sourceGroup}: normal coordinate step must be greater than 0 m.`);
             }
+            if (config.bridgeMinDistance <= 0 || config.bridgeApproachMax <= 0) {
+                errors.push(`${group.sourceGroup}: bridge distances must be greater than 0 m.`);
+            }
+            if (config.bridgeApproachMax >= config.bridgeMinDistance) {
+                errors.push(`${group.sourceGroup}: bridge approach maximum must be less than bridge minimum distance.`);
+            }
             const startSectionIndex = Math.floor((config.startSourceIndex - 1) / getTypeSize(config.type));
             if (!group.records.some((record) => Math.floor((record.sourceIndex - 1) / getTypeSize(config.type)) === startSectionIndex)) {
                 errors.push(`${group.sourceGroup}: start source index must belong to a measured section.`);
@@ -575,6 +658,7 @@
             const plan = getCoordinateAwareMqPlan(group, config);
             config.mqBySection = plan.mqBySection;
             config.coordinateGaps = plan.gaps;
+            config.detectedBridges = plan.bridges;
             const minimumMq = Math.min(...config.mqBySection.values());
             if (minimumMq < 1) {
                 errors.push(`${group.sourceGroup}: configuration maps some records below MQ01.`);
@@ -629,6 +713,14 @@
             lines.push(
                 `${sourceGroup} -> ${config.type}${pad2(config.pathNumber)} | final prefix ${config.basePrefix} | start MQ ${config.startMq} | start source index ${config.startSourceIndex} | coordinate gap check ${config.coordinateGapCheck ? `on (${config.normalStep} m step)` : 'off'}`
             );
+            lines.push(
+                `  Bridge detection: ${config.bridgeDetection ? `on (span >= ${config.bridgeMinDistance} m, approaches <= ${config.bridgeApproachMax} m)` : 'off'}`
+            );
+            (config.detectedBridges || []).forEach((bridge) => {
+                lines.push(
+                    `  Bridge detected: section ${bridge.fromSectionIndex + 1} -> ${bridge.toSectionIndex + 1} | spans ${bridge.distances.map((distance) => distance.toFixed(3)).join(', ')} m | approaches ${bridge.approachBefore.toFixed(3)} / ${bridge.approachAfter.toFixed(3)} m | coordinate MQ skipping suppressed`
+                );
+            });
             (config.coordinateGaps || []).forEach((gap) => {
                 lines.push(
                     `  Coordinate gap: section ${gap.fromSectionIndex + 1} -> ${gap.toSectionIndex + 1} | distance ${gap.distance.toFixed(3)} m | MQ advance ${gap.mqAdvance} | additional skipped MQs ${gap.skippedMqCount}`
@@ -712,9 +804,13 @@
                 coordinateSkippedMqCount: Array.from(configs.values()).reduce(
                     (sum, config) => sum + (config.coordinateGaps || []).reduce((gapSum, gap) => gapSum + gap.skippedMqCount, 0),
                     0
-                )
+                ),
+                detectedBridgeCount: Array.from(configs.values()).reduce(
+                    (sum, config) => sum + (config.detectedBridges || []).length,
+                    0
+                ),
             };
-            document.getElementById('exportSummary').textContent = `Ready: ${replacements.length} point IDs mapped across ${configs.size} configured groups. Coordinate checks preserved ${latestOutput.coordinateSkippedMqCount} additional skipped MQ positions.`;
+            document.getElementById('exportSummary').textContent = `Ready: ${replacements.length} point IDs mapped across ${configs.size} configured groups. Coordinate checks preserved ${latestOutput.coordinateSkippedMqCount} additional skipped MQ positions and recognized ${latestOutput.detectedBridgeCount} bridge spans.`;
             exportCard.classList.remove('hidden');
             exportCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (error) {
