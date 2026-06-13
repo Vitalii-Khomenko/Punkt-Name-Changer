@@ -121,10 +121,10 @@ Numeric point mapping:
 
 | Source family | Target pattern |
 | --- | --- |
-| `2505.1.NN` | `G02.NNN` |
-| `2500.1.NN` | `G03.NNN` |
-| `2504.2.NN` | `G04.NNN` |
-| `2504.1.NN` | `G05.NNN` |
+| `2505.1.NN` | `P02.NNN` |
+| `2500.1.NN` | `P03.NNN` |
+| `2504.2.NN` | `P04.NNN` |
+| `2504.1.NN` | `P05.NNN` |
 
 Each source family's EX points keep their source family prefix. EX points use
 four positions per MQ through `MQ22-2`, then jump across the bridge:
