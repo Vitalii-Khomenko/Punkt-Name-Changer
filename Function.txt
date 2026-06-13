@@ -27,7 +27,10 @@ Core behavior:
   existing source-index-based MQ and suffix rules. It replaces only raw ASCII
   point-field bytes so all other source bytes and fixed-width alignment remain
   unchanged. Direct final-MQ output applies the existing `-0.04 m` Q/QL prism
-  height correction.
+  height correction. Its enabled-by-default coordinate gap check compares
+  consecutive section centers and advances by the larger of the source-index
+  step or `round(distance / configured normal step)`, preserving MQ numbers
+  when measured sections were skipped.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of

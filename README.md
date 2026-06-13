@@ -51,8 +51,15 @@ The normalized output applies the selected target paths, such as `P02.001` or
 `G01.019`, and can also be opened in the main renamer. Direct final-MQ output
 also applies the existing `-0.04 m` height correction to Q/QL prism positions.
 MQ numbering uses the original source index, so skipped source ranges keep their
-real positions. The browser processes and replaces raw ASCII point-field bytes
-only, preserving the remaining IPKT bytes and fixed-width field alignment.
+real positions. An enabled-by-default coordinate gap check also compares the
+center coordinates of consecutive sections. With a configured normal step of
+`3.0 m`, a distance near `6.0 m` advances two MQ positions, so the next measured
+section after `MQ01` becomes `MQ03`. The inferred advance is
+`round(distance / normal step)` and never reduces a larger source-index-derived
+advance. The TXT report lists every coordinate-inferred gap.
+
+The browser processes and replaces raw ASCII fixed-width fields only, preserving
+the remaining IPKT bytes and alignment.
 
 ---
 

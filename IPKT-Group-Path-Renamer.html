@@ -128,7 +128,8 @@
             <div><strong id="summarySkipped">0</strong><span>Skipped YXZ records</span></div>
         </div>
         <p class="help">
-            MQ numbering is based on the original source index. Skipped source ranges therefore keep their real MQ positions.
+            MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
+            With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
             P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
             Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
         </p>
@@ -144,6 +145,8 @@
                     <th>Final base prefix</th>
                     <th>Start MQ</th>
                     <th>Start source index</th>
+                    <th>Coordinate gap check</th>
+                    <th>Normal step (m)</th>
                     <th>Preview</th>
                 </tr>
                 </thead>
@@ -264,10 +267,14 @@
                     const yEnd = findByte(bytes, 124, yxzIndex + yxzMarker.length, lineEnd);
                     const xEnd = yEnd === -1 ? -1 : findByte(bytes, 124, yEnd + 1, lineEnd);
                     const heightEnd = xEnd === -1 ? -1 : findByte(bytes, 124, xEnd + 1, lineEnd);
+                    const y = yEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, yxzIndex + yxzMarker.length, yEnd));
+                    const x = xEnd === -1 ? null : Number.parseFloat(trimAsciiField(bytes, yEnd + 1, xEnd));
                     const record = {
                         ...parsed,
                         pointId,
                         lineNumber,
+                        y: Number.isFinite(y) ? y : null,
+                        x: Number.isFinite(x) ? x : null,
                         fieldStart: pipeIndex + 1,
                         fieldEnd: yxzIndex,
                         fieldWidth: yxzIndex - pipeIndex - 1,
@@ -330,8 +337,91 @@
         return startMq + Math.floor((sourceIndex - 1) / size) - Math.floor((startSourceIndex - 1) / size);
     }
 
+    function buildSections(group, config) {
+        const size = getTypeSize(config.type);
+        const sectionsByIndex = new Map();
+        group.records.forEach((record) => {
+            const sectionIndex = Math.floor((record.sourceIndex - 1) / size);
+            if (!sectionsByIndex.has(sectionIndex)) sectionsByIndex.set(sectionIndex, []);
+            sectionsByIndex.get(sectionIndex).push(record);
+        });
+        return Array.from(sectionsByIndex, ([sectionIndex, records]) => {
+            const coordinateRecords = records.filter((record) => record.y !== null && record.x !== null);
+            return {
+                sectionIndex,
+                records,
+                y: coordinateRecords.length ? coordinateRecords.reduce((sum, record) => sum + record.y, 0) / coordinateRecords.length : null,
+                x: coordinateRecords.length ? coordinateRecords.reduce((sum, record) => sum + record.x, 0) / coordinateRecords.length : null
+            };
+        }).sort((left, right) => left.sectionIndex - right.sectionIndex);
+    }
+
+    function getSectionDistance(left, right) {
+        if (left.y === null || left.x === null || right.y === null || right.x === null) return null;
+        return Math.hypot(right.y - left.y, right.x - left.x);
+    }
+
+    function getCoordinateAwareMqPlan(group, config) {
+        const sections = buildSections(group, config);
+        const startSectionIndex = Math.floor((config.startSourceIndex - 1) / getTypeSize(config.type));
+        const mqBySection = new Map([[startSectionIndex, config.startMq]]);
+        const gaps = [];
+
+        for (let index = 1; index < sections.length; index += 1) {
+            const left = sections[index - 1];
+            const right = sections[index];
+            const sourceAdvance = right.sectionIndex - left.sectionIndex;
+            const distance = getSectionDistance(left, right);
+            const coordinateAdvance = config.coordinateGapCheck && distance !== null
+                ? Math.max(1, Math.round(distance / config.normalStep))
+                : 1;
+            const mqAdvance = Math.max(sourceAdvance, coordinateAdvance);
+            if (mqAdvance > sourceAdvance) {
+                gaps.push({
+                    fromSectionIndex: left.sectionIndex,
+                    toSectionIndex: right.sectionIndex,
+                    distance,
+                    sourceAdvance,
+                    mqAdvance,
+                    skippedMqCount: mqAdvance - sourceAdvance
+                });
+            }
+        }
+
+        const anchorPosition = sections.findIndex((section) => section.sectionIndex >= startSectionIndex);
+        if (anchorPosition === -1) return { mqBySection, gaps };
+        mqBySection.set(sections[anchorPosition].sectionIndex, config.startMq + sections[anchorPosition].sectionIndex - startSectionIndex);
+
+        for (let index = anchorPosition + 1; index < sections.length; index += 1) {
+            const left = sections[index - 1];
+            const right = sections[index];
+            const sourceAdvance = right.sectionIndex - left.sectionIndex;
+            const distance = getSectionDistance(left, right);
+            const coordinateAdvance = config.coordinateGapCheck && distance !== null
+                ? Math.max(1, Math.round(distance / config.normalStep))
+                : 1;
+            mqBySection.set(right.sectionIndex, mqBySection.get(left.sectionIndex) + Math.max(sourceAdvance, coordinateAdvance));
+        }
+        for (let index = anchorPosition - 1; index >= 0; index -= 1) {
+            const left = sections[index];
+            const right = sections[index + 1];
+            const sourceAdvance = right.sectionIndex - left.sectionIndex;
+            const distance = getSectionDistance(left, right);
+            const coordinateAdvance = config.coordinateGapCheck && distance !== null
+                ? Math.max(1, Math.round(distance / config.normalStep))
+                : 1;
+            mqBySection.set(left.sectionIndex, mqBySection.get(right.sectionIndex) - Math.max(sourceAdvance, coordinateAdvance));
+        }
+        return { mqBySection, gaps };
+    }
+
+    function getPlannedMqIndex(config, sourceIndex) {
+        const sectionIndex = Math.floor((sourceIndex - 1) / getTypeSize(config.type));
+        return config.mqBySection?.get(sectionIndex) ?? getMqIndex(config.type, sourceIndex, config.startSourceIndex, config.startMq);
+    }
+
     function buildFinalName(config, sourceIndex) {
-        const mqIndex = getMqIndex(config.type, sourceIndex, config.startSourceIndex, config.startMq);
+        const mqIndex = getPlannedMqIndex(config, sourceIndex);
         return `${config.basePrefix}.MQ${pad2(mqIndex)}.${getSuffix(config.type, sourceIndex)}`;
     }
 
@@ -412,6 +502,15 @@
             startSourceIndex.max = '998';
             createCell(row, startSourceIndex);
 
+            const coordinateGapCheck = createInput('checkbox', 'coordinateGapCheck', '');
+            coordinateGapCheck.checked = true;
+            createCell(row, coordinateGapCheck);
+
+            const normalStep = createInput('number', 'normalStep', '3');
+            normalStep.min = '0.1';
+            normalStep.step = '0.1';
+            createCell(row, normalStep);
+
             const preview = document.createElement('span');
             preview.dataset.role = 'preview';
             preview.className = 'preview';
@@ -430,8 +529,10 @@
         const basePrefix = row.querySelector('[data-role="basePrefix"]').value.trim();
         const startMq = Number.parseInt(row.querySelector('[data-role="startMq"]').value, 10);
         const startSourceIndex = Number.parseInt(row.querySelector('[data-role="startSourceIndex"]').value, 10);
-        if (!type || !Number.isInteger(pathNumber) || !basePrefix || !Number.isInteger(startMq) || !Number.isInteger(startSourceIndex)) return null;
-        return { type, pathNumber, basePrefix, startMq, startSourceIndex };
+        const coordinateGapCheck = row.querySelector('[data-role="coordinateGapCheck"]').checked;
+        const normalStep = Number.parseFloat(row.querySelector('[data-role="normalStep"]').value);
+        if (!type || !Number.isInteger(pathNumber) || !basePrefix || !Number.isInteger(startMq) || !Number.isInteger(startSourceIndex) || !Number.isFinite(normalStep)) return null;
+        return { type, pathNumber, basePrefix, startMq, startSourceIndex, coordinateGapCheck, normalStep };
     }
 
     function collectConfigs() {
@@ -458,13 +559,23 @@
             if (config.startSourceIndex < 1 || config.startSourceIndex > 998) {
                 errors.push(`${group.sourceGroup}: start source index must be from 1 to 998.`);
             }
+            if (config.normalStep <= 0) {
+                errors.push(`${group.sourceGroup}: normal coordinate step must be greater than 0 m.`);
+            }
+            const startSectionIndex = Math.floor((config.startSourceIndex - 1) / getTypeSize(config.type));
+            if (!group.records.some((record) => Math.floor((record.sourceIndex - 1) / getTypeSize(config.type)) === startSectionIndex)) {
+                errors.push(`${group.sourceGroup}: start source index must belong to a measured section.`);
+            }
             const targetPath = `${config.type}${pad2(config.pathNumber)}`;
             if (targetPaths.has(targetPath)) {
                 errors.push(`${group.sourceGroup}: target path ${targetPath} is already assigned to ${targetPaths.get(targetPath)}.`);
             } else {
                 targetPaths.set(targetPath, group.sourceGroup);
             }
-            const minimumMq = getMqIndex(config.type, group.minIndex, config.startSourceIndex, config.startMq);
+            const plan = getCoordinateAwareMqPlan(group, config);
+            config.mqBySection = plan.mqBySection;
+            config.coordinateGaps = plan.gaps;
+            const minimumMq = Math.min(...config.mqBySection.values());
             if (minimumMq < 1) {
                 errors.push(`${group.sourceGroup}: configuration maps some records below MQ01.`);
             }
@@ -516,8 +627,13 @@
         ];
         configs.forEach((config, sourceGroup) => {
             lines.push(
-                `${sourceGroup} -> ${config.type}${pad2(config.pathNumber)} | final prefix ${config.basePrefix} | start MQ ${config.startMq} | start source index ${config.startSourceIndex}`
+                `${sourceGroup} -> ${config.type}${pad2(config.pathNumber)} | final prefix ${config.basePrefix} | start MQ ${config.startMq} | start source index ${config.startSourceIndex} | coordinate gap check ${config.coordinateGapCheck ? `on (${config.normalStep} m step)` : 'off'}`
             );
+            (config.coordinateGaps || []).forEach((gap) => {
+                lines.push(
+                    `  Coordinate gap: section ${gap.fromSectionIndex + 1} -> ${gap.toSectionIndex + 1} | distance ${gap.distance.toFixed(3)} m | MQ advance ${gap.mqAdvance} | additional skipped MQs ${gap.skippedMqCount}`
+                );
+            });
         });
         lines.push('', 'Renames:');
         replacements.forEach(({ record, config, newName }) => {
@@ -592,9 +708,13 @@
                 bytes: applyQuadroHeightOffsets(renamedBytes, replacements),
                 normalizedBytes: replaceFields(sourceBytes, normalizedReplacements),
                 report: buildReport(configs, replacements),
-                renamedCount: replacements.length
+                renamedCount: replacements.length,
+                coordinateSkippedMqCount: Array.from(configs.values()).reduce(
+                    (sum, config) => sum + (config.coordinateGaps || []).reduce((gapSum, gap) => gapSum + gap.skippedMqCount, 0),
+                    0
+                )
             };
-            document.getElementById('exportSummary').textContent = `Ready: ${replacements.length} point IDs mapped across ${configs.size} configured groups. Download normalized path IDs or final MQ names.`;
+            document.getElementById('exportSummary').textContent = `Ready: ${replacements.length} point IDs mapped across ${configs.size} configured groups. Coordinate checks preserved ${latestOutput.coordinateSkippedMqCount} additional skipped MQ positions.`;
             exportCard.classList.remove('hidden');
             exportCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (error) {
