@@ -88,6 +88,7 @@
         td .base-prefix { width: 110px; }
         .source { display: inline-block; min-width: 110px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
         .preview { display: inline-block; min-width: 170px; color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; }
+        .automatic-ex { color: #8b4f08; font-weight: 800; }
         .type-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfc; color: var(--muted); }
         .type-legend strong { color: var(--ink); }
         .schematic { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -171,6 +172,7 @@
             MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
             With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
             Optional bridge detection recognizes each separate bounded bridge span, including rare files containing two or more bridges.
+            Groups explicitly ending in <code>.EX</code> use automatic coordinate-anchored EX numbering: the first EX point starts at the nearest configured prism or rail MQ, normally four EX points share an MQ, and two points share each MQ immediately before and after a detected bridge.
             P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
             Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
         </p>
@@ -317,7 +319,13 @@
         const sourceGroup = match[1];
         const sourceIndex = Number.parseInt(match[2], 10);
         if (!sourceGroup || !Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > 998) return null;
-        return { sourceGroup, sourceIndex };
+        const explicitExMatch = sourceGroup.match(/^(.*)\.EX$/i);
+        return {
+            sourceGroup,
+            sourceIndex,
+            isExplicitEx: Boolean(explicitExMatch),
+            exBaseGroup: explicitExMatch ? explicitExMatch[1] : null
+        };
     }
 
     function parseIpktBytes(bytes) {
@@ -378,6 +386,8 @@
                     if (!groupsByName.has(parsed.sourceGroup)) {
                         groupsByName.set(parsed.sourceGroup, {
                             sourceGroup: parsed.sourceGroup,
+                            isExplicitEx: parsed.isExplicitEx,
+                            exBaseGroup: parsed.exBaseGroup,
                             count: 0,
                             minIndex: parsed.sourceIndex,
                             maxIndex: parsed.sourceIndex,
@@ -658,6 +668,125 @@
         return Math.hypot(right.y - left.y, right.x - left.x);
     }
 
+    function getRecordDistance(left, right) {
+        if (left.y === null || left.x === null || right.y === null || right.x === null) return null;
+        return Math.hypot(right.y - left.y, right.x - left.x);
+    }
+
+    function buildExplicitExChunks(records, bridgeMinDistance) {
+        const sortedRecords = [...records].sort((left, right) => left.sourceIndex - right.sourceIndex);
+        const segments = [];
+        let segmentStart = 0;
+        for (let index = 1; index < sortedRecords.length; index += 1) {
+            const distance = getRecordDistance(sortedRecords[index - 1], sortedRecords[index]);
+            if (distance !== null && distance >= bridgeMinDistance) {
+                segments.push({
+                    records: sortedRecords.slice(segmentStart, index),
+                    bridgeAfterDistance: distance
+                });
+                segmentStart = index;
+            }
+        }
+        segments.push({ records: sortedRecords.slice(segmentStart), bridgeAfterDistance: null });
+
+        const chunks = [];
+        function appendChunk(sourceIndexes, segmentRecords, bridgeSide) {
+            const indexSet = new Set(sourceIndexes);
+            chunks.push({
+                sourceIndexes,
+                records: segmentRecords.filter((record) => indexSet.has(record.sourceIndex)),
+                bridgeSide
+            });
+        }
+
+        segments.forEach((segment, segmentIndex) => {
+            const startsAfterBridge = segmentIndex > 0;
+            const endsBeforeBridge = segment.bridgeAfterDistance !== null;
+            const sourceIndexes = [];
+            const firstSourceIndex = segment.records[0]?.sourceIndex;
+            const lastSourceIndex = segment.records[segment.records.length - 1]?.sourceIndex;
+            for (let sourceIndex = firstSourceIndex; sourceIndex <= lastSourceIndex; sourceIndex += 1) {
+                sourceIndexes.push(sourceIndex);
+            }
+            let cursor = 0;
+            let remaining = sourceIndexes.length;
+
+            if (startsAfterBridge && remaining > 0) {
+                const size = Math.min(2, remaining);
+                appendChunk(sourceIndexes.slice(cursor, cursor + size), segment.records, 'after');
+                cursor += size;
+                remaining -= size;
+            }
+
+            const reservedBeforeBridge = endsBeforeBridge && remaining > 0 ? Math.min(2, remaining) : 0;
+            const middleEnd = sourceIndexes.length - reservedBeforeBridge;
+            while (cursor < middleEnd) {
+                const size = Math.min(4, middleEnd - cursor);
+                appendChunk(sourceIndexes.slice(cursor, cursor + size), segment.records, null);
+                cursor += size;
+            }
+            if (reservedBeforeBridge > 0) {
+                appendChunk(sourceIndexes.slice(cursor), segment.records, 'before');
+            }
+            if (endsBeforeBridge && chunks.length > 0) {
+                chunks[chunks.length - 1].bridgeAfterDistance = segment.bridgeAfterDistance;
+            }
+        });
+        return chunks;
+    }
+
+    function findExplicitExAnchor(group, configs) {
+        const firstRecord = [...group.records].sort((left, right) => left.sourceIndex - right.sourceIndex)
+            .find((record) => record.y !== null && record.x !== null);
+        if (!firstRecord) return null;
+
+        const candidates = [];
+        discoveredGroups.forEach((candidateGroup) => {
+            if (candidateGroup.isExplicitEx) return;
+            const candidateConfig = configs.get(candidateGroup.sourceGroup);
+            if (!candidateConfig || !['P', 'G'].includes(candidateConfig.type)) return;
+            const plan = getCoordinateAwareMqPlan(candidateGroup, candidateConfig);
+            buildSections(candidateGroup, candidateConfig).forEach((section) => {
+                const mqIndex = plan.mqBySection.get(section.sectionIndex);
+                if (!Number.isInteger(mqIndex) || section.y === null || section.x === null) return;
+                candidates.push({
+                    sourceGroup: candidateGroup.sourceGroup,
+                    mqIndex,
+                    distance: Math.hypot(firstRecord.y - section.y, firstRecord.x - section.x),
+                    sameFamily: candidateGroup.sourceGroup === group.exBaseGroup
+                });
+            });
+        });
+        candidates.sort((left, right) => left.distance - right.distance || Number(right.sameFamily) - Number(left.sameFamily));
+        return candidates[0] || null;
+    }
+
+    function getExplicitExPlan(group, config, configs) {
+        const anchor = findExplicitExAnchor(group, configs);
+        if (!anchor) return { error: `${group.sourceGroup}: no configured prism or rail MQ is available for coordinate anchoring.` };
+        const chunks = buildExplicitExChunks(group.records, config.bridgeMinDistance);
+        const mappingByRecord = new Map();
+        const bridges = [];
+        let mqIndex = anchor.mqIndex;
+
+        chunks.forEach((chunk, chunkIndex) => {
+            chunk.records.forEach((record) => {
+                mappingByRecord.set(record, { mqIndex, position: chunk.sourceIndexes.indexOf(record.sourceIndex) + 1 });
+            });
+            if (chunk.bridgeAfterDistance !== undefined) {
+                bridges.push({
+                    afterSourceIndex: chunk.sourceIndexes[chunk.sourceIndexes.length - 1],
+                    beforeSourceIndex: chunks[chunkIndex + 1]?.sourceIndexes[0] ?? null,
+                    distance: chunk.bridgeAfterDistance
+                });
+                mqIndex += 2;
+            } else {
+                mqIndex += 1;
+            }
+        });
+        return { anchor, chunks, mappingByRecord, bridges };
+    }
+
     function detectBridgeTransitions(sections, config) {
         const bridgeTransitionIndexes = new Set();
         const bridges = [];
@@ -775,6 +904,12 @@
         return `${config.type}${pad2(config.pathNumber)}.${pad3(sourceIndex)}`;
     }
 
+    function buildExplicitExName(group, config, record) {
+        const mapping = config.exPlan?.mappingByRecord.get(record);
+        if (!mapping) throw new Error(`Line ${record.lineNumber}: automatic EX mapping is unavailable.`);
+        return `${group.exBaseGroup}.MQ${mapping.mqIndex}-${mapping.position}`;
+    }
+
     function createCell(row, content) {
         const cell = document.createElement('td');
         if (content instanceof Node) cell.appendChild(content);
@@ -793,13 +928,19 @@
     }
 
     function updateRowPreview(row) {
-        const config = getRowConfig(row);
         const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+        const config = getRowConfig(row, !group?.isExplicitEx);
         const preview = row.querySelector('[data-role="preview"]');
         if (!config || !group) {
             preview.textContent = 'Complete configuration';
             return;
         }
+        if (group.isExplicitEx) {
+            preview.classList.add('automatic-ex');
+            preview.textContent = 'Automatic EX coordinate anchor';
+            return;
+        }
+        preview.classList.remove('automatic-ex');
         const firstIndex = group.minIndex;
         preview.textContent = `${buildNormalizedName(config, firstIndex)} -> ${buildFinalName(config, firstIndex)}`;
     }
@@ -811,6 +952,7 @@
         Array.from(groupsBody.querySelectorAll('tr')).forEach((row) => {
             if (!row.querySelector('[data-role="enabled"]').checked) return;
             const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+            if (group?.isExplicitEx) return;
             const config = getRowConfig(row, false);
             if (
                 !group || !config || config.startMq < 1 || config.startSourceIndex < 1 ||
@@ -956,6 +1098,20 @@
             preview.className = 'preview';
             createCell(row, preview);
 
+            if (group.isExplicitEx) {
+                type.disabled = true;
+                pathNumber.disabled = true;
+                basePrefix.disabled = true;
+                startMq.disabled = true;
+                startSourceIndex.disabled = true;
+                coordinateGapCheck.disabled = true;
+                normalStep.disabled = true;
+                bridgeDetection.checked = true;
+                bridgeDetection.disabled = true;
+                bridgeApproachMax.disabled = true;
+                bridgeMinDistance.title = 'Large coordinate gaps at or above this distance split automatic EX bridge sections.';
+            }
+
             row.addEventListener('input', () => {
                 updateRowPreview(row);
                 renderMqSchematic();
@@ -999,9 +1155,16 @@
         Array.from(groupsBody.querySelectorAll('tr')).forEach((row) => {
             if (!row.querySelector('[data-role="enabled"]').checked) return;
             const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
-            const config = getRowConfig(row);
+            const config = getRowConfig(row, !group.isExplicitEx);
             if (!config) {
                 errors.push(`${group.sourceGroup}: complete every configuration field.`);
+                return;
+            }
+            if (group.isExplicitEx) {
+                if (config.bridgeMinDistance <= 0) {
+                    errors.push(`${group.sourceGroup}: bridge minimum distance must be greater than 0 m.`);
+                }
+                configs.set(group.sourceGroup, config);
                 return;
             }
             if (!SAFE_NAME_COMPONENT_PATTERN.test(config.basePrefix)) {
@@ -1044,6 +1207,18 @@
                 errors.push(`${group.sourceGroup}: configuration maps some records below MQ01.`);
             }
             configs.set(group.sourceGroup, config);
+        });
+        configs.forEach((config, sourceGroup) => {
+            const group = discoveredGroups.find((candidate) => candidate.sourceGroup === sourceGroup);
+            if (!group?.isExplicitEx) return;
+            const exPlan = getExplicitExPlan(group, config, configs);
+            if (exPlan.error) {
+                errors.push(exPlan.error);
+                return;
+            }
+            config.exPlan = exPlan;
+            config.detectedBridges = exPlan.bridges;
+            config.coordinateGaps = [];
         });
         if (configs.size === 0) errors.push('Enable and configure at least one source group.');
         return { configs, errors };
@@ -1091,6 +1266,19 @@
             ''
         ];
         configs.forEach((config, sourceGroup) => {
+            const group = discoveredGroups.find((candidate) => candidate.sourceGroup === sourceGroup);
+            if (group?.isExplicitEx) {
+                lines.push(
+                    `${sourceGroup} -> automatic EX mapping | coordinate anchor ${config.exPlan.anchor.sourceGroup} MQ${config.exPlan.anchor.mqIndex} | anchor distance ${config.exPlan.anchor.distance.toFixed(3)} m | four positions normally, two positions beside bridges`
+                );
+                lines.push(`  Detected EX bridges: ${config.exPlan.bridges.length}`);
+                config.exPlan.bridges.forEach((bridge, bridgeIndex) => {
+                    lines.push(
+                        `  EX bridge ${bridgeIndex + 1}: after EX.${pad2(bridge.afterSourceIndex)} before EX.${pad2(bridge.beforeSourceIndex)} | distance ${bridge.distance.toFixed(3)} m | one MQ number reserved`
+                    );
+                });
+                return;
+            }
             lines.push(
                 `${sourceGroup} -> ${config.type}${pad2(config.pathNumber)} | final prefix ${config.basePrefix} | start MQ ${config.startMq} | start source index ${config.startSourceIndex} | coordinate gap check ${config.coordinateGapCheck ? `on (${config.normalStep} m step)` : 'off'}`
             );
@@ -1111,7 +1299,9 @@
         });
         lines.push('', 'Renames:');
         replacements.forEach(({ record, config, newName }) => {
-            lines.push(`Line ${record.lineNumber}: ${record.pointId} -> ${buildNormalizedName(config, record.sourceIndex)} -> ${newName}`);
+            const group = discoveredGroups.find((candidate) => candidate.sourceGroup === record.sourceGroup);
+            const normalizedName = group?.isExplicitEx ? newName : buildNormalizedName(config, record.sourceIndex);
+            lines.push(`Line ${record.lineNumber}: ${record.pointId} -> ${normalizedName} -> ${newName}`);
         });
         return lines.join('\r\n');
     }
@@ -1192,6 +1382,12 @@
                 const config = configs.get(group.sourceGroup);
                 if (!config) return;
                 group.records.forEach((record) => {
+                    if (group.isExplicitEx) {
+                        const newName = buildExplicitExName(group, config, record);
+                        replacements.push({ record, config, newName });
+                        normalizedReplacements.push({ record, newName });
+                        return;
+                    }
                     replacements.push({ record, config, newName: buildFinalName(config, record.sourceIndex) });
                     normalizedReplacements.push({ record, newName: buildNormalizedName(config, record.sourceIndex) });
                 });

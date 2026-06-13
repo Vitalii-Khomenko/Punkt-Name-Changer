@@ -54,6 +54,21 @@ be exported separately as a detailed TXT log containing its generated
 date/time, source filename, duplicate groups, point records, and direct matching
 pairs.
 
+Groups explicitly ending in `.EX`, such as `2505.1.EX`, use automatic EX mode.
+The browser finds the nearest configured prism or rail MQ by Y/X coordinates
+and anchors `EX.01` there. Normally four EX positions share each MQ. A large
+coordinate gap at the configured Bridge min distance splits a bridge, so the MQ
+immediately before and after the bridge uses two positions and one MQ is
+reserved across the span. For the real `20260613_YXZ.ipkt` coordinates this
+produces `2505.1.EX.01 -> 2505.1.MQ19-1`, `EX.14 -> MQ22-2`,
+`EX.15/16 -> MQ24-1/2`, and `EX.17 -> MQ25-1`.
+
+Automatic EX rows preserve their source-family prefix, disable irrelevant
+manual path/start controls, and require at least one enabled, configured `P` or
+`G` group with valid coordinates. If no coordinate anchor exists, export stops
+with an error instead of incorrectly starting EX numbering at `MQ01`. Skipped
+EX source indexes retain their original position.
+
 The final names follow the same MQ and suffix rules as `Punkt-Name-Changer.html`.
 The normalized output applies the selected target paths, such as `P02.001` or
 `G01.019`, and can also be opened in the main renamer. Direct final-MQ output

@@ -42,6 +42,13 @@ Core behavior:
   checks every valid `YXZ` record for duplicate Y/X coordinates, displays the
   results below the configuration, and exports a separate detailed duplicate
   TXT log.
+- In the group path renamer, a source group explicitly ending in `.EX` uses
+  automatic coordinate-anchored EX mapping. Its first point starts at the
+  nearest configured `P` or `G` MQ. Four EX positions normally share an MQ;
+  the MQ immediately before and after each detected large bridge gap uses two
+  positions, with one MQ reserved across the bridge. The source-family prefix
+  is preserved, skipped EX indexes keep their position, and export fails
+  instead of falling back to `MQ01` when no coordinate anchor exists.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. IDs explicitly containing `.EX.` always use
