@@ -66,6 +66,10 @@ immediately before and after it. Bridge detection is disabled by default and
 lists every recognized bridge in the TXT report. A large unbounded jump still
 counts as a missing-measurement gap.
 
+The Configure Groups table uses compact role-specific input widths so short
+numeric settings and checkbox columns remain narrow while source names, prefixes,
+and previews keep enough space to read.
+
 The browser processes and replaces raw ASCII fixed-width fields only, preserving
 the remaining IPKT bytes and alignment.
 

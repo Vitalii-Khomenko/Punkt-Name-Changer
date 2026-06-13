@@ -72,13 +72,22 @@
         .summary strong, .summary span { display: block; }
         .summary span { margin-top: 4px; color: var(--muted); font-size: 0.88rem; }
         .table-wrap { overflow-x: auto; }
-        table { width: 100%; min-width: 1050px; border-collapse: collapse; }
-        th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
-        th { background: #edf5f8; font-size: 0.88rem; }
-        td input, td select { min-width: 86px; }
-        td .base-prefix { min-width: 120px; }
-        .source { min-width: 170px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-        .preview { color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.86rem; }
+        table { width: max-content; min-width: 100%; border-collapse: collapse; }
+        th, td { padding: 6px 5px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+        th { max-width: 92px; background: #edf5f8; font-size: 0.78rem; line-height: 1.15; white-space: normal; }
+        td input, td select { min-height: 36px; padding: 5px 6px; }
+        td select[data-role="type"] { width: 116px; }
+        td input[data-role="pathNumber"],
+        td input[data-role="startMq"] { width: 62px; }
+        td input[data-role="startSourceIndex"] { width: 76px; }
+        td input[data-role="normalStep"],
+        td input[data-role="bridgeMinDistance"],
+        td input[data-role="bridgeApproachMax"] { width: 78px; }
+        td input[type="checkbox"] { display: block; width: 22px; min-height: 22px; margin: auto; }
+        td:has(input[type="checkbox"]) { width: 42px; text-align: center; }
+        td .base-prefix { width: 110px; }
+        .source { display: inline-block; min-width: 110px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .preview { display: inline-block; min-width: 170px; color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; }
         .warning-list { margin: 10px 0 0; color: var(--error); }
 
         @media (max-width: 760px) {
