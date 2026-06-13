@@ -88,6 +88,26 @@
         td .base-prefix { width: 110px; }
         .source { display: inline-block; min-width: 110px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
         .preview { display: inline-block; min-width: 170px; color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; }
+        .schematic { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+        .schematic-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; color: var(--muted); font-size: 0.82rem; }
+        .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+        .legend-dot { width: 11px; height: 11px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent); }
+        .legend-dot.missing { border-color: #b53b3b; background: #fff; }
+        .legend-dot.bridge { border-color: #b66a12; background: #e8a64c; }
+        .schematic-group { margin-top: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfc; }
+        .schematic-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-bottom: 8px; font-size: 0.86rem; font-weight: 700; }
+        .mq-line-wrap { overflow-x: auto; padding: 8px 6px 4px; }
+        .mq-line { display: flex; width: max-content; min-width: 100%; }
+        .mq-node { position: relative; flex: 0 0 46px; padding-top: 17px; color: var(--muted); text-align: center; font-size: 0.7rem; }
+        .mq-node::before { content: ""; position: absolute; top: 5px; left: 0; right: 0; height: 3px; background: #9eb0bc; }
+        .mq-node:first-child::before { left: 50%; }
+        .mq-node:last-child::before { right: 50%; }
+        .mq-node::after { content: ""; position: absolute; top: 0; left: calc(50% - 6px); width: 9px; height: 9px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent); }
+        .mq-node.missing::before { background: repeating-linear-gradient(90deg, #c86b6b 0 5px, transparent 5px 9px); }
+        .mq-node.missing::after { border-color: #b53b3b; background: #fff; }
+        .mq-node.bridge::before { background: #e8a64c; }
+        .mq-node.bridge::after { border-color: #b66a12; background: #e8a64c; }
+        .mq-node-label { white-space: nowrap; }
         .warning-list { margin: 10px 0 0; color: var(--error); }
 
         @media (max-width: 760px) {
@@ -166,6 +186,16 @@
                 <tbody id="groupsBody"></tbody>
             </table>
         </div>
+        <section class="schematic" aria-labelledby="schematicHeading">
+            <h3 id="schematicHeading">MQ Line Schematic</h3>
+            <p class="help">A simple live view of measured MQ sections, inferred missing sections, and recognized bridge spans.</p>
+            <div class="schematic-legend">
+                <span class="legend-item"><span class="legend-dot"></span>Measured MQ</span>
+                <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ</span>
+                <span class="legend-item"><span class="legend-dot bridge"></span>Bridge section</span>
+            </div>
+            <div id="mqSchematic"></div>
+        </section>
         <div class="actions">
             <button id="renameButton" type="button">Build Renamed IPKT</button>
         </div>
@@ -199,6 +229,7 @@
     const exportCard = document.getElementById('exportCard');
     const groupsBody = document.getElementById('groupsBody');
     const warningsElement = document.getElementById('warnings');
+    const mqSchematic = document.getElementById('mqSchematic');
 
     let sourceFile = null;
     let sourceBytes = null;
@@ -520,6 +551,86 @@
         preview.textContent = `${buildNormalizedName(config, firstIndex)} -> ${buildFinalName(config, firstIndex)}`;
     }
 
+    function renderMqSchematic() {
+        mqSchematic.replaceChildren();
+        let renderedGroups = 0;
+
+        Array.from(groupsBody.querySelectorAll('tr')).forEach((row) => {
+            if (!row.querySelector('[data-role="enabled"]').checked) return;
+            const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+            const config = getRowConfig(row, false);
+            if (
+                !group || !config || config.startMq < 1 || config.startSourceIndex < 1 ||
+                config.normalStep <= 0 || config.bridgeMinDistance <= 0 || config.bridgeApproachMax <= 0
+            ) return;
+
+            const plan = getCoordinateAwareMqPlan(group, config);
+            config.mqBySection = plan.mqBySection;
+            const sections = buildSections(group, config);
+            const measuredMqs = new Set();
+            const bridgeMqs = new Set();
+
+            sections.forEach((section) => {
+                const mqIndex = plan.mqBySection.get(section.sectionIndex);
+                if (Number.isInteger(mqIndex)) measuredMqs.add(mqIndex);
+            });
+            plan.bridges.forEach((bridge) => {
+                sections.forEach((section) => {
+                    if (section.sectionIndex < bridge.fromSectionIndex || section.sectionIndex > bridge.toSectionIndex) return;
+                    const mqIndex = plan.mqBySection.get(section.sectionIndex);
+                    if (Number.isInteger(mqIndex)) bridgeMqs.add(mqIndex);
+                });
+            });
+            if (measuredMqs.size === 0) return;
+
+            const minimumMq = Math.min(...measuredMqs);
+            const maximumMq = Math.max(...measuredMqs);
+            const missingCount = maximumMq - minimumMq + 1 - measuredMqs.size;
+            const wrapper = document.createElement('article');
+            wrapper.className = 'schematic-group';
+
+            const title = document.createElement('div');
+            title.className = 'schematic-title';
+            const name = document.createElement('span');
+            name.textContent = `${group.sourceGroup} -> ${config.type}${pad2(config.pathNumber)}`;
+            const summary = document.createElement('span');
+            summary.textContent = `MQ${pad2(minimumMq)}..MQ${pad2(maximumMq)} | measured ${measuredMqs.size} | missing ${missingCount} | bridges ${plan.bridges.length}`;
+            title.append(name, summary);
+
+            const lineWrap = document.createElement('div');
+            lineWrap.className = 'mq-line-wrap';
+            const line = document.createElement('div');
+            line.className = 'mq-line';
+            for (let mqIndex = minimumMq; mqIndex <= maximumMq; mqIndex += 1) {
+                const node = document.createElement('span');
+                node.className = 'mq-node';
+                if (!measuredMqs.has(mqIndex)) node.classList.add('missing');
+                if (bridgeMqs.has(mqIndex)) node.classList.add('bridge');
+                node.title = bridgeMqs.has(mqIndex)
+                    ? `MQ${pad2(mqIndex)}: measured bridge section`
+                    : measuredMqs.has(mqIndex)
+                        ? `MQ${pad2(mqIndex)}: measured section`
+                        : `MQ${pad2(mqIndex)}: inferred missing section`;
+                const label = document.createElement('span');
+                label.className = 'mq-node-label';
+                label.textContent = `MQ${pad2(mqIndex)}`;
+                node.appendChild(label);
+                line.appendChild(node);
+            }
+            lineWrap.appendChild(line);
+            wrapper.append(title, lineWrap);
+            mqSchematic.appendChild(wrapper);
+            renderedGroups += 1;
+        });
+
+        if (renderedGroups === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'help';
+            empty.textContent = 'Enable and complete a group configuration to display its MQ line.';
+            mqSchematic.appendChild(empty);
+        }
+    }
+
     function renderGroups() {
         groupsBody.replaceChildren();
         discoveredGroups.forEach((group, groupIndex) => {
@@ -592,14 +703,21 @@
             preview.className = 'preview';
             createCell(row, preview);
 
-            row.addEventListener('input', () => updateRowPreview(row));
-            row.addEventListener('change', () => updateRowPreview(row));
+            row.addEventListener('input', () => {
+                updateRowPreview(row);
+                renderMqSchematic();
+            });
+            row.addEventListener('change', () => {
+                updateRowPreview(row);
+                renderMqSchematic();
+            });
             groupsBody.appendChild(row);
             updateRowPreview(row);
         });
+        renderMqSchematic();
     }
 
-    function getRowConfig(row) {
+    function getRowConfig(row, requireBasePrefix = true) {
         const type = row.querySelector('[data-role="type"]').value;
         const pathNumber = Number.parseInt(row.querySelector('[data-role="pathNumber"]').value, 10);
         const basePrefix = row.querySelector('[data-role="basePrefix"]').value.trim();
@@ -611,7 +729,7 @@
         const bridgeMinDistance = Number.parseFloat(row.querySelector('[data-role="bridgeMinDistance"]').value);
         const bridgeApproachMax = Number.parseFloat(row.querySelector('[data-role="bridgeApproachMax"]').value);
         if (
-            !type || !Number.isInteger(pathNumber) || !basePrefix || !Number.isInteger(startMq) ||
+            !type || !Number.isInteger(pathNumber) || (requireBasePrefix && !basePrefix) || !Number.isInteger(startMq) ||
             !Number.isInteger(startSourceIndex) || !Number.isFinite(normalStep) ||
             !Number.isFinite(bridgeMinDistance) || !Number.isFinite(bridgeApproachMax)
         ) return null;
@@ -848,6 +966,7 @@
         discoveredGroups = [];
         latestOutput = null;
         groupsBody.replaceChildren();
+        mqSchematic.replaceChildren();
         warningsElement.replaceChildren();
         summaryCard.classList.add('hidden');
         exportCard.classList.add('hidden');
@@ -862,6 +981,7 @@
             input.value = value;
             updateRowPreview(input.closest('tr'));
         });
+        renderMqSchematic();
     });
     clearButton.addEventListener('click', clearAll);
     renameButton.addEventListener('click', buildRenamedFile);

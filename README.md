@@ -70,6 +70,12 @@ The Configure Groups table uses compact role-specific input widths so short
 numeric settings and checkbox columns remain narrow while source names, prefixes,
 and previews keep enough space to read.
 
+Below the configuration table, a live horizontally scrollable MQ line schematic
+shows each enabled group. Solid blue nodes are measured MQ sections, hollow red
+nodes are inferred missing sections, and orange nodes mark recognized bridge
+sections. The schematic uses the same MQ plan as final export and redraws when
+configuration values change.
+
 The browser processes and replaces raw ASCII fixed-width fields only, preserving
 the remaining IPKT bytes and alignment.
 
