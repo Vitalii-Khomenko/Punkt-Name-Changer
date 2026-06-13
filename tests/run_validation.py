@@ -28,6 +28,7 @@ SECURITY_PATH = ROOT / "SECURITY.md"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
 NORMALIZE_SCRIPT_PATH = ROOT / "scripts" / "normalize_leica_point_ids.py"
 GLEIS_PREFIX_SCRIPT_PATH = ROOT / "scripts" / "normalize_gleis_point_prefix.py"
+MULTI_FAMILY_SCRIPT_PATH = ROOT / "scripts" / "normalize_20260613_point_ids.py"
 GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
 RENAMER_PATH = ROOT / "js" / "renamer.js"
 MAIN_PATH = ROOT / "js" / "main.js"
@@ -331,6 +332,57 @@ def make_ql_session(start_index: int, start_mq: int, limit: int) -> dict[str, ob
 
 
 class RenamingRegressionTests(unittest.TestCase):
+    def test_multi_family_normalizer_maps_bridge_ex_sequence(self) -> None:
+        source = (
+            b"# header with non-UTF8: \x84\r\n"
+            b" 000001|  |      |  |      |      |           2505.1.01|YXZ| 1.00000| 2.00000|\r\n"
+            b" 000002|  |      |  |      |      |           2500.1.01|YXZ| 3.00000| 4.00000|\r\n"
+            b" 000003|  |      |  |      |      |           2504.2.01|YXZ| 5.00000| 6.00000|\r\n"
+            b" 000004|  |      |  |      |      |           2504.1.01|YXZ| 7.00000| 8.00000|\r\n"
+            b" 000005|  |      |  |      |      |        2505.1.EX.14|YXZ| 9.00000| 10.00000|\r\n"
+            b" 000006|  |      |  |      |      |        2505.1.EX.15|YXZ| 11.00000| 12.00000|\r\n"
+            b" 000007|  |      |  |      |      |        2505.1.EX.16|YXZ| 13.00000| 14.00000|\r\n"
+            b" 000008|  |      |  |      |      |        2505.1.EX.17|YXZ| 15.00000| 16.00000|\r\n"
+            b" 000009|  |      |  |      |      |        2505.1.EX.20|YXZ| 17.00000| 18.00000|\r\n"
+            b" 000010|  |      |  |      |      |        2505.1.EX.21|YXZ| 19.00000| 20.00000|\r\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "multi.ipkt"
+            output_path = Path(temp_dir) / "multi_normalized.ipkt"
+            input_path.write_bytes(source)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(MULTI_FAMILY_SCRIPT_PATH),
+                    str(input_path),
+                    "--output",
+                    str(output_path),
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            normalized = output_path.read_bytes()
+
+        self.assertEqual(len(source), len(normalized))
+        self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
+        self.assertIn(b"             G02.001|YXZ| 1.00000| 2.00000|", normalized)
+        self.assertIn(b"             G03.001|YXZ| 3.00000| 4.00000|", normalized)
+        self.assertIn(b"             G03.001|YXZ| 5.00000| 6.00000|", normalized)
+        self.assertIn(b"             G04.001|YXZ| 7.00000| 8.00000|", normalized)
+        self.assertIn(b"       2505.1.MQ22-2|YXZ| 9.00000| 10.00000|", normalized)
+        self.assertIn(b"       2505.1.MQ24-1|YXZ| 11.00000| 12.00000|", normalized)
+        self.assertIn(b"       2505.1.MQ24-2|YXZ| 13.00000| 14.00000|", normalized)
+        self.assertIn(b"       2505.1.MQ25-1|YXZ| 15.00000| 16.00000|", normalized)
+        self.assertIn(b"       2505.1.MQ25-4|YXZ| 17.00000| 18.00000|", normalized)
+        self.assertIn(b"       2505.1.MQ26-1|YXZ| 19.00000| 20.00000|", normalized)
+        self.assertNotIn(b"2505.1.EX.", normalized)
+        self.assertIn("Normalized 4 numeric point IDs", result.stdout)
+        self.assertIn("Normalized 6 EX point IDs", result.stdout)
+
     def test_gleis_prefix_normalizer_preserves_suffix_and_layout(self) -> None:
         source = (
             b"# header with non-UTF8: \x84\r\n"
@@ -579,6 +631,7 @@ class ProjectInvariantTests(unittest.TestCase):
             BUILD_SCRIPT_PATH,
             NORMALIZE_SCRIPT_PATH,
             GLEIS_PREFIX_SCRIPT_PATH,
+            MULTI_FAMILY_SCRIPT_PATH,
             RENAMER_PATH,
             MAIN_PATH,
         ]

@@ -108,6 +108,36 @@ The script leaves other points such as `T1..T4` unchanged. The consecutive
 range can be changed with `--consecutive-start-point` and
 `--consecutive-end-point`.
 
+### 20260613 Multi-Family Mini-Script
+
+Use the dedicated converter for the four source families in
+`20260613_YXZ.ipkt`:
+
+```bash
+python scripts/normalize_20260613_point_ids.py 20260613_YXZ.ipkt
+```
+
+Numeric point mapping:
+
+| Source family | Target pattern |
+| --- | --- |
+| `2505.1.NN` | `G02.NNN` |
+| `2500.1.NN` | `G03.NNN` |
+| `2504.2.NN` | `G03.NNN` |
+| `2504.1.NN` | `G04.NNN` |
+
+Each source family's EX points keep their source family prefix. EX points use
+four positions per MQ through `MQ22-2`, then jump across the bridge:
+
+```text
+EX.14 -> MQ22-2
+EX.15 -> MQ24-1
+EX.16 -> MQ24-2
+EX.17 -> MQ25-1
+```
+
+From `MQ25-1`, normal four-position MQ groups resume.
+
 ---
 
 ## Output Name Format
