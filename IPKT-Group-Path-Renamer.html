@@ -76,7 +76,7 @@
         th, td { padding: 6px 5px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
         th { max-width: 92px; background: #edf5f8; font-size: 0.78rem; line-height: 1.15; white-space: normal; }
         td input, td select { min-height: 36px; padding: 5px 6px; }
-        td select[data-role="type"] { width: 116px; }
+        td select[data-role="type"] { width: 62px; }
         td input[data-role="pathNumber"],
         td input[data-role="startMq"] { width: 62px; }
         td input[data-role="startSourceIndex"] { width: 76px; }
@@ -88,6 +88,8 @@
         td .base-prefix { width: 110px; }
         .source { display: inline-block; min-width: 110px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
         .preview { display: inline-block; min-width: 170px; color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; }
+        .type-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfc; color: var(--muted); }
+        .type-legend strong { color: var(--ink); }
         .schematic { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
         .schematic-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; color: var(--muted); font-size: 0.82rem; }
         .legend-item { display: inline-flex; align-items: center; gap: 5px; }
@@ -168,10 +170,16 @@
         <p class="help">
             MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
             With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
-            Optional bridge detection treats one or more large spans as a bridge only when short approaches exist immediately before and after the complete span.
+            Optional bridge detection recognizes each separate bounded bridge span, including rare files containing two or more bridges.
             P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
             Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
         </p>
+        <div class="type-legend" aria-label="Measurement type legend">
+            <span><strong>G</strong> = Rail path</span>
+            <span><strong>P</strong> = Prism path</span>
+            <span><strong>Q</strong> = Quadro</span>
+            <span><strong>QL</strong> = Quadro line</span>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead>
@@ -894,10 +902,10 @@
 
             const type = document.createElement('select');
             type.dataset.role = 'type';
-            [['P', 'P - Prism path'], ['G', 'G - Rail path'], ['Q', 'Q - Quadro'], ['QL', 'QL - Quadro line']].forEach(([value, label]) => {
+            ['G', 'P', 'Q', 'QL'].forEach((value) => {
                 const option = document.createElement('option');
                 option.value = value;
-                option.textContent = label;
+                option.textContent = value;
                 type.appendChild(option);
             });
             createCell(row, type);
@@ -1089,9 +1097,10 @@
             lines.push(
                 `  Bridge detection: ${config.bridgeDetection ? `on (span >= ${config.bridgeMinDistance} m, approaches <= ${config.bridgeApproachMax} m)` : 'off'}`
             );
-            (config.detectedBridges || []).forEach((bridge) => {
+            lines.push(`  Detected separate bridges: ${(config.detectedBridges || []).length}`);
+            (config.detectedBridges || []).forEach((bridge, bridgeIndex) => {
                 lines.push(
-                    `  Bridge detected: section ${bridge.fromSectionIndex + 1} -> ${bridge.toSectionIndex + 1} | spans ${bridge.distances.map((distance) => distance.toFixed(3)).join(', ')} m | approaches ${bridge.approachBefore.toFixed(3)} / ${bridge.approachAfter.toFixed(3)} m | coordinate MQ skipping suppressed`
+                    `  Bridge ${bridgeIndex + 1} detected: section ${bridge.fromSectionIndex + 1} -> ${bridge.toSectionIndex + 1} | spans ${bridge.distances.map((distance) => distance.toFixed(3)).join(', ')} m | approaches ${bridge.approachBefore.toFixed(3)} / ${bridge.approachAfter.toFixed(3)} m | coordinate MQ skipping suppressed`
                 );
             });
             (config.coordinateGaps || []).forEach((gap) => {

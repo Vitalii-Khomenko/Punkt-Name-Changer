@@ -34,11 +34,14 @@ Core behavior:
   when measured sections were skipped. Optional bridge detection suppresses
   coordinate-derived MQ skips for a large span or consecutive run of large
   spans only when short measured approaches bound the complete span on both
-  sides. A live MQ line schematic uses the same export plan to show measured,
-  missing, and bridge sections for every enabled group. During group discovery,
-  it also checks every valid `YXZ` record for duplicate Y/X coordinates,
-  displays the results below the configuration, and exports a separate detailed
-  duplicate TXT log.
+  sides. It detects every separate bounded bridge in a group, including two or
+  more bridges, and numbers them in the TXT report. The compact Type selector
+  contains only `G`, `P`, `Q`, and `QL`, with a legend above the table. A live
+  MQ line schematic uses the same export plan to show measured, missing, and
+  bridge sections for every enabled group. During group discovery, it also
+  checks every valid `YXZ` record for duplicate Y/X coordinates, displays the
+  results below the configuration, and exports a separate detailed duplicate
+  TXT log.
 - The optional `scripts/normalize_leica_point_ids.py` preprocessor converts a
   configured prism series such as `101.1` into `P01.001` while
   preserving pipe-file alignment. It also converts `101.EX.NN` into groups of

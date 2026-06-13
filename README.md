@@ -71,12 +71,14 @@ mistaken for missing MQ sections. With the default bridge settings, a single
 span or consecutive run of spans at least `9.0 m` is recognized as a bridge
 only when the complete span has measured approaches no longer than `2.5 m`
 immediately before and after it. Bridge detection is disabled by default and
-lists every recognized bridge in the TXT report. A large unbounded jump still
-counts as a missing-measurement gap.
+recognizes multiple separate bridges in the same group, including rare files
+with two or more bridges. The TXT report numbers and lists every recognized
+bridge. A large unbounded jump still counts as a missing-measurement gap.
 
 The Configure Groups table uses compact role-specific input widths so short
 numeric settings and checkbox columns remain narrow while source names, prefixes,
-and previews keep enough space to read.
+and previews keep enough space to read. The compact Type selector contains only
+`G`, `P`, `Q`, and `QL`; a legend above the table explains each type.
 
 Below the configuration table, a live horizontally scrollable MQ line schematic
 shows each enabled group. Solid blue nodes are measured MQ sections, hollow red
