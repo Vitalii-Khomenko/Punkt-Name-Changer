@@ -25,7 +25,8 @@ Core behavior:
   source points `G101.19..36` use consecutive MQs. After point 36, the
   every-other-MQ sequence resumes.
 - The dedicated `scripts/normalize_20260613_point_ids.py` mini-script maps
-  `2505.1` to `G02`, `2500.1` and `2504.2` to `G03`, and `2504.1` to `G04`.
+  `2505.1` to `G02`, `2500.1` to `G03`, `2504.2` to `G04`, and `2504.1` to
+  `G05`.
   Its EX sequences end the first section at `MQ22-2`, jump to `MQ24-1/2`,
   and resume four-position groups from `MQ25-1`.
 - Supported point IDs use dot format only: `G01.001..G10.998`,
