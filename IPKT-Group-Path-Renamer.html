@@ -79,7 +79,6 @@
         td select[data-role="type"] { width: 62px; }
         td input[data-role="pathNumber"],
         td input[data-role="startMq"] { width: 62px; }
-        td input[data-role="startSourceIndex"] { width: 76px; }
         td input[data-role="normalStep"],
         td input[data-role="bridgeMinDistance"],
         td input[data-role="bridgeApproachMax"] { width: 78px; }
@@ -193,7 +192,6 @@
                     <th>Path</th>
                     <th>Final base prefix</th>
                     <th>Start MQ</th>
-                    <th>Start source index</th>
                     <th>Coordinate gap check</th>
                     <th>Normal step (m)</th>
                     <th>Bridge detection</th>
@@ -1131,12 +1129,10 @@
 
             const startMq = createInput('number', 'startMq', '1');
             startMq.min = '1';
-            createCell(row, startMq);
+            const startMqCell = createCell(row, startMq);
 
-            const startSourceIndex = createInput('number', 'startSourceIndex', String(group.minIndex));
-            startSourceIndex.min = '1';
-            startSourceIndex.max = '998';
-            createCell(row, startSourceIndex);
+            const startSourceIndex = createInput('hidden', 'startSourceIndex', String(group.minIndex));
+            startMqCell.appendChild(startSourceIndex);
 
             const coordinateGapCheck = createInput('checkbox', 'coordinateGapCheck', '');
             coordinateGapCheck.checked = true;

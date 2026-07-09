@@ -720,6 +720,8 @@ class ProjectInvariantTests(unittest.TestCase):
         self.assertIn("Download Normalized IPKT", renamer)
         self.assertIn("Coordinate checks preserved", renamer)
         self.assertIn('td input[data-role="pathNumber"]', renamer)
+        self.assertNotIn("<th>Start source index</th>", renamer)
+        self.assertIn("createInput('hidden', 'startSourceIndex', String(group.minIndex))", renamer)
         self.assertIn('td select[data-role="type"] { width: 62px; }', renamer)
         self.assertIn('class="type-legend"', renamer)
         self.assertIn("['G', 'P', 'Q', 'QL'].forEach", renamer)

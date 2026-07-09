@@ -96,6 +96,8 @@ The Configure Groups table uses compact role-specific input widths so short
 numeric settings and checkbox columns remain narrow while source names, prefixes,
 and previews keep enough space to read. The compact Type selector contains only
 `G`, `P`, `Q`, and `QL`; a legend above the table explains each type.
+The source index used to anchor MQ numbering is set automatically to the first
+detected point in each group, so it is not shown as a manual table field.
 
 Below the configuration table, a live horizontally scrollable MQ line schematic
 shows each enabled group. Solid blue nodes are measured MQ sections, hollow red
