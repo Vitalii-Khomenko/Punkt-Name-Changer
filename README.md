@@ -6,6 +6,27 @@ normalized or final MQ point names.
 
 Files remain in browser memory and are never uploaded.
 
+## Documentation
+
+- `Mission.md` — complete product purpose, data model, workflow, naming rules,
+  coordinate-aware MQ planning, bridge logic, EX anchoring, byte-preservation
+  rules, exports, and architecture.
+- `Function.txt` — function-by-function reference for `app.js` and `build.py`.
+- `VALIDATION.md` — automated coverage and validation limitations.
+- `SECURITY.md` — local-processing and input/output safety model.
+
+## Workflow
+
+1. Select one Leica `.ipkt` file.
+2. Set the duplicate-coordinate tolerance and discover source point groups.
+3. Enable the groups to process and configure each as `G`, `P`, `Q`, or `QL`.
+4. Review the proposed MQ schematic, coordinate-inferred gaps, and bridges.
+5. Build the output and download the normalized IPKT, final renamed IPKT,
+   rename report, and optional duplicate-coordinate report.
+
+Groups explicitly ending in `.EX` use automatic coordinate anchoring to the
+nearest enabled prism or rail MQ. See `Mission.md` for the full algorithm.
+
 ## Files
 
 - `index.html` — canonical split HTML.

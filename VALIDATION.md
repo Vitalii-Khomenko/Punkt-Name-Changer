@@ -17,6 +17,7 @@ The suite validates:
   mobile overflow safeguards.
 - Deterministic rebuilding of `IPKT-Group-Path-Renamer.html`.
 - English-only project text.
+- Presence of the detailed mission and function reference.
 
 The automated checks do not replace review of real Leica files before
 production use.

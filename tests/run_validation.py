@@ -20,6 +20,8 @@ VALIDATION = ROOT / "VALIDATION.md"
 SECURITY = ROOT / "SECURITY.md"
 AGENTS = ROOT / "AGENTS.md"
 LICENSE = ROOT / "LICENSE"
+MISSION = ROOT / "Mission.md"
+FUNCTIONS = ROOT / "Function.txt"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
 
 
@@ -36,6 +38,8 @@ class ProjectTests(unittest.TestCase):
             SECURITY,
             AGENTS,
             LICENSE,
+            MISSION,
+            FUNCTIONS,
         ]:
             self.assertTrue(path.exists(), f"Missing required file: {path.name}")
 
@@ -136,8 +140,43 @@ class ProjectTests(unittest.TestCase):
             self.assertIn(marker, css)
 
     def test_project_text_is_english_only(self) -> None:
-        for path in [SOURCE_HTML, SOURCE_CSS, SOURCE_JS, README, VALIDATION, SECURITY, AGENTS]:
+        for path in [
+            SOURCE_HTML,
+            SOURCE_CSS,
+            SOURCE_JS,
+            README,
+            VALIDATION,
+            SECURITY,
+            AGENTS,
+            MISSION,
+            FUNCTIONS,
+        ]:
             self.assertIsNone(CYRILLIC_RE.search(path.read_text(encoding="utf-8")), path.name)
+
+    def test_detailed_logic_documentation_is_present(self) -> None:
+        mission = MISSION.read_text(encoding="utf-8")
+        functions = FUNCTIONS.read_text(encoding="utf-8")
+        readme = README.read_text(encoding="utf-8")
+
+        for marker in [
+            "Coordinate-aware MQ planning",
+            "Bridge detection",
+            "Explicit EX mapping",
+            "Fixed-width preservation",
+            "Quadro height correction",
+        ]:
+            self.assertIn(marker, mission)
+        for marker in [
+            "parseIpktBytes",
+            "findDuplicateGroups",
+            "getCoordinateAwareMqPlan",
+            "getExplicitExPlan",
+            "replaceFields",
+            "build()",
+        ]:
+            self.assertIn(marker, functions)
+        self.assertIn("Mission.md", readme)
+        self.assertIn("Function.txt", readme)
 
     def test_license_is_mit(self) -> None:
         text = LICENSE.read_text(encoding="utf-8")

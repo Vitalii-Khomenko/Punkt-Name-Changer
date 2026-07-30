@@ -1,0 +1,154 @@
+IPKT Group Path Renamer — Function Reference
+
+Source of truth
+
+- index.html: workflow markup and accessible controls.
+- style.css: GeoMonitoring design tokens, components, and responsive behavior.
+- app.js: all browser-side parsing, planning, renaming, reporting, and export.
+- build.py: deterministic split-to-single-file builder.
+- IPKT-Group-Path-Renamer.html: generated self-contained field file.
+- tests/run_validation.py: regression and project-invariant checks.
+
+Runtime state
+
+- sourceFile: selected browser File object.
+- sourceBytes: immutable Uint8Array read from the selected IPKT file.
+- discoveredGroups: parsed source-group metadata and records.
+- latestOutput: renamed bytes, normalized bytes, report, and summary counts.
+- latestDuplicateAnalysis: duplicate groups and report metadata.
+
+Status and byte parsing
+
+- setStatus(message, kind): updates the polite live status region.
+- bytesToAscii(bytes): converts raw ASCII bytes without changing their values.
+- findSequence(bytes, sequence, start, end): finds a byte marker in a range.
+- findLastByte(bytes, value, start, end): scans backward for a delimiter.
+- findByte(bytes, value, start, end): scans forward for a delimiter.
+- trimAsciiField(bytes, start, end): trims spaces, tabs, and trailing CR from a
+  fixed-width ASCII field.
+- parseSourcePointId(pointId): splits the final numeric index from an arbitrary
+  source group. It also identifies source groups explicitly ending in `.EX`.
+- parseIpktBytes(bytes): scans line boundaries and `|YXZ|` markers, extracts
+  LfNr, PointID, Y, X, and height, records exact byte offsets and widths, builds
+  source groups, and counts malformed or unsupported YXZ records.
+
+Duplicate-coordinate analysis
+
+- createDisjointSet(size): union-find structure used to merge transitive
+  duplicate matches.
+- findDuplicateGroups(records, tolerance): groups records whose Y and X
+  component differences are both within the configured tolerance. Exact
+  matching uses direct coordinate keys; nonzero tolerance uses spatial buckets.
+- calculateDuplicateGroupDeltas(group): returns the full Y/X range of a group.
+- findMatchingPairs(group, tolerance): lists each directly matching record pair.
+- formatCoordinate(value): renders a coordinate with five decimals.
+- formatReportDate(value): creates an English, 24-hour report timestamp.
+- getSafeDownloadBaseName(fileName): removes the IPKT extension and replaces
+  unsafe filename characters.
+- renderDuplicateAnalysis(analysis): builds the duplicate summary and tables.
+- buildDuplicateReport(analysis): creates the detailed TXT report with source
+  metadata, group records, and direct matching pairs.
+
+Measurement types and naming
+
+- pad2(value), pad3(value): format MQ/path and source-index components.
+- getTypeSize(type): returns two records per section for G/P and four for Q/QL.
+- getSuffix(type, sourceIndex): applies output suffix order:
+  P = 1/2, G = 3/4, Q = 3/4/1/2, QL = 1/3/4/2.
+- isQuadroPrism(type, sourceIndex): identifies Q/QL positions that receive the
+  -0.04 m height correction.
+- getMqIndex(type, sourceIndex, startSourceIndex, startMq): computes a basic MQ
+  from the original section index rather than the number of rows encountered.
+- getPlannedMqIndex(config, sourceIndex): reads the coordinate-aware plan and
+  falls back to the basic source-index formula.
+- buildFinalName(config, sourceIndex): produces `prefix.MQnn.suffix`.
+- buildNormalizedName(config, sourceIndex): produces `G01.001`, `P01.001`,
+  `Q01.001`, or `QL01.001` style normalized IDs.
+- buildExplicitExName(group, config, record): produces automatic EX output in
+  `prefix.MQnn-position` format.
+
+Coordinate-aware MQ planning
+
+- buildSections(group, config): groups source records into two- or four-record
+  sections and calculates the average Y/X center of each measured section.
+- getSectionDistance(left, right): Euclidean distance between section centers.
+- getRecordDistance(left, right): Euclidean distance between individual points.
+- detectBridgeTransitions(sections, config): finds consecutive long spans at or
+  above Bridge min. A run is accepted as a bridge only when it has measured
+  approaches on both sides and both are at or below Bridge approach max.
+- getCoordinateAwareMqPlan(group, config): anchors the configured start section,
+  plans forward and backward, and advances each transition by:
+
+  max(source section advance, round(distance / normal step), 1)
+
+  Coordinate-derived skipping is suppressed across recognized bridge
+  transitions. Source-index gaps are never reduced.
+
+Explicit EX planning
+
+- buildExplicitExChunks(records, bridgeMinDistance): sorts EX records, splits
+  them at long coordinate gaps, assigns four positions per ordinary MQ, and two
+  positions to the MQ directly before and after each bridge.
+- findExplicitExAnchor(group, configs): finds the nearest planned section center
+  among enabled non-EX P/G groups. Distance is primary; same-family membership
+  breaks equal-distance ties.
+- getExplicitExPlan(group, config, configs): starts at the anchor MQ, maps each
+  EX record to an MQ/position, and reserves one MQ across every detected bridge.
+  It returns an error when no valid coordinate anchor exists.
+
+Configuration UI and schematic
+
+- createCell(row, content): appends a table cell.
+- createInput(type, role, value, className): creates a configuration input with
+  a stable data-role identifier.
+- updateRowPreview(row): validates a row enough to show its proposed name range.
+- renderMqSchematic(): renders measured, missing, and bridge/reserved positions
+  from the same plans used by export.
+- renderGroups(): creates one configuration row per discovered source group and
+  wires change events to preview and schematic updates.
+- getRowConfig(row, requireBasePrefix): reads typed values from one row.
+- collectConfigs(): validates enabled rows, unique target paths, path/start
+  ranges, distance rules, safe prefixes, measured start sections, positive MQ
+  results, and EX anchors; it attaches the calculated plan to each config.
+
+Fixed-width output and reporting
+
+- replaceFields(bytes, replacements): clones the source bytes, clears only the
+  original PointID field with spaces, and right-aligns the new ASCII name. It
+  fails if a name cannot fit the original field width.
+- applyQuadroHeightOffsets(bytes, replacements): clones renamed bytes and
+  subtracts 0.04 m only from Q/QL prism height fields while preserving the
+  original field width and at least the original decimal precision.
+- buildReport(configs, replacements): creates the TXT rename report containing
+  configuration, anchor, gap, bridge, and line-by-line rename evidence.
+
+Workflow and downloads
+
+- discoverGroups(): validates extension, 10 MB size limit, and duplicate
+  tolerance; reads bytes; parses records; computes duplicate groups; renders
+  configuration and quality-check results; and updates shared state.
+- buildRenamedFile(): validates configurations, creates normalized and final
+  replacement plans, applies fixed-width replacements and height offsets, builds
+  the report, and enables export.
+- downloadBlob(blob, fileName): downloads a browser-generated local object URL.
+- clearAll(): clears selected input, derived state, results, and UI summaries.
+
+Event handlers
+
+- Discover Point Groups calls discoverGroups().
+- Apply Default Prefix writes one prefix to all displayed groups.
+- Clear calls clearAll().
+- File selection invalidates all derived results.
+- Build Renamed IPKT calls buildRenamedFile().
+- Export buttons download normalized IPKT, renamed IPKT, rename TXT, or duplicate
+  TXT output from the latest completed analysis.
+
+Build functions
+
+- replace_csp(html, value): replaces the single CSP meta tag.
+- extract_sources(): recovery-only operation that extracts inline CSS/JS from an
+  existing field file into the canonical root sources.
+- build(): reads index.html, style.css, and app.js; verifies asset placeholders;
+  inlines both assets; changes CSP to allow those inline blocks; and writes
+  IPKT-Group-Path-Renamer.html.
+- main(): parses `--extract` and runs the requested deterministic build.

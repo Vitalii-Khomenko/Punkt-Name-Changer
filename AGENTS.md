@@ -22,6 +22,7 @@ pull requests, issues, and generated examples.
 ## Workflow
 
 - Update documentation after functional changes.
+- Keep `Mission.md` and `Function.txt` aligned with active logic.
 - Run `python tests/run_validation.py` after functional changes.
 - Commit and push completed functional changes to GitHub.
 - Keep comments and developer notes concise and accurate.
