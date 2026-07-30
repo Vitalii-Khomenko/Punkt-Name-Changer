@@ -1,8 +1,8 @@
-"""Build the self-contained IPKT group/path renamer from split sources.
+"""Build the self-contained IPKT group/path renamer from root split sources.
 
-The canonical sources live in ipkt-group-path-renamer/. Use --extract once to
-bootstrap those sources from the existing self-contained field file. Normal
-builds replace IPKT-Group-Path-Renamer.html deterministically.
+The canonical sources are index.html, style.css, and app.js. Use --extract only
+to restore them from an existing self-contained field file. Normal builds
+replace IPKT-Group-Path-Renamer.html deterministically.
 """
 
 from __future__ import annotations
@@ -12,11 +12,10 @@ import re
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = ROOT / "ipkt-group-path-renamer"
-SOURCE_HTML = SOURCE_DIR / "index.html"
-SOURCE_CSS = SOURCE_DIR / "style.css"
-SOURCE_JS = SOURCE_DIR / "app.js"
+ROOT = Path(__file__).resolve().parent
+SOURCE_HTML = ROOT / "index.html"
+SOURCE_CSS = ROOT / "style.css"
+SOURCE_JS = ROOT / "app.js"
 OUTPUT_HTML = ROOT / "IPKT-Group-Path-Renamer.html"
 
 EXTERNAL_CSP = (
@@ -54,11 +53,10 @@ def extract_sources() -> None:
     html += source[script_match.end() :]
     html = replace_csp(html, EXTERNAL_CSP)
 
-    SOURCE_DIR.mkdir(exist_ok=True)
     SOURCE_HTML.write_text(html, encoding="utf-8")
     SOURCE_CSS.write_text(style_match.group(1).strip() + "\n", encoding="utf-8")
     SOURCE_JS.write_text(script_match.group(1).strip() + "\n", encoding="utf-8")
-    print(f"Extracted canonical sources into {SOURCE_DIR.relative_to(ROOT)}/")
+    print("Extracted canonical root sources")
 
 
 def build() -> None:

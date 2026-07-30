@@ -4,91 +4,142 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-    <title>Leica Mobile Renamer V3</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>IPKT Group Path Renamer</title>
+    <link rel="stylesheet" href="style.css">
+
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Leica Mobile Renamer</h1>
-            <p>Optimized for Samsung A55 - IPKT/IMES Priority</p>
-        </header>
+<main>
+    <header class="product-header">
+        <p class="eyebrow">GeoMonitoring field tools</p>
+        <h1>IPKT Group Path Renamer</h1>
+        <p class="lead">
+            Discover Leica point groups, map each group to a measurement path, and export final MQ point names.
+        </p>
+        <p class="trust-indicator"><span aria-hidden="true">✓</span> Local processing — files remain in this browser tab and are never uploaded.</p>
+    </header>
 
-        <div class="card">
-            <h3>1. File Selection</h3>
-            <div class="form-group">
-                <label for="fileInput">Upload Files</label>
-                <input type="file" id="fileInput" multiple accept=".imes,.ipkt,.iroh,.lqp,.txt">
-                <small class="hint">Supports .imes, .ipkt, .iroh, .lqp</small>
+    <section class="card source-card">
+        <div class="section-heading">
+            <p class="step-label">Step 1 · Source data</p>
+            <h2>Load and analyze an IPKT file</h2>
+        </div>
+        <div class="grid">
+            <div>
+                <label for="ipktFile">IPKT file</label>
+                <input id="ipktFile" type="file" accept=".ipkt">
+                <p class="help">Maximum file size: 10 MB. Only records containing <code>|YXZ|</code> are analyzed.</p>
             </div>
-            <div class="form-group">
-                <label for="masterFileSelect">Master File (Reference):</label>
-                <select id="masterFileSelect">
-                    <option value="">(Selecting a file first...)</option>
-                </select>
-                <small class="hint">Defines coordinates &amp; total point count.</small>
+            <div>
+                <label for="defaultBasePrefix">Default final base prefix</label>
+                <input id="defaultBasePrefix" type="text" placeholder="e.g. 3560" autocomplete="off" spellcheck="false">
+                <p class="help">Applied to every discovered group when you press Apply Default Prefix.</p>
+            </div>
+            <div>
+                <label for="coordinateTolerance">Duplicate Y/X tolerance in meters</label>
+                <input id="coordinateTolerance" type="number" min="0" max="1" step="0.001" value="0.1">
+                <p class="help">Duplicate records are listed when each Y/X component differs by no more than this value.</p>
             </div>
         </div>
-
-        <div class="card">
-            <h3>2. Configuration</h3>
-            <div id="busyStatus" class="status-line" aria-live="polite"></div>
-            <div class="form-group">
-                <label>Detected Patterns</label>
-                <div id="patternsContainer"></div>
-                <small class="hint">For each pattern (e.g. G01.xxx), set New Base Prefix, start point, quantity, and start MQ.</small>
-            </div>
-
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="useLfNrStart">
-                        Manual start by &lt;LfNr&gt; (for .imes/.ipkt)
-                    </label>
-                    <small class="hint">When enabled, the tool renames exactly ONE point (the point found at the given &lt;LfNr&gt; in Master) to the provided new name.</small>
-                </div>
-                <div class="form-group">
-                    <label for="startLfNr">Start &lt;LfNr&gt;</label>
-                    <input type="text" id="startLfNr" value="000001" placeholder="e.g. 22 or 000022" inputmode="numeric" autocomplete="off">
-                    <small class="hint">Used only when manual mode is enabled.</small>
-                </div>
-            </div>
-
-            <div id="manualOverrideFields" style="display:none;">
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label for="manualNewPointName">Manual: New Point Name</label>
-                        <input type="text" id="manualNewPointName" value="" placeholder="e.g. 3560.MQ01.3" autocomplete="off" autocapitalize="characters" spellcheck="false">
-                        <small class="hint">No spaces. The tool applies this rename across the current session files.</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid-2">
-                <div class="form-group">
-                    <label for="suffix">Output Suffix</label>
-                    <input type="text" id="suffix" value="_renamed" placeholder="_renamed" autocomplete="off" spellcheck="false">
-                </div>
-            </div>
-
-            <div id="exportSummary" class="summary-box" aria-live="polite">No files loaded yet.</div>
-
-            <div class="action-row">
-                <button id="processBtn">Rename</button>
-                <button id="exportTxtBtn" type="button">Export TXT</button>
-            </div>
+        <div class="actions">
+            <button id="analyzeButton" type="button">Discover Point Groups</button>
+            <button id="applyPrefixButton" class="secondary" type="button" disabled>Apply Default Prefix</button>
+            <button id="clearButton" class="quiet" type="button">Clear</button>
         </div>
+        <p id="status" class="status" role="status" aria-live="polite">Select an IPKT file to begin.</p>
+    </section>
 
-        <div class="card">
-            <h3>Log Output</h3>
-            <div id="log"></div>
+    <section id="summaryCard" class="card result-card hidden">
+        <div class="section-heading">
+            <p class="step-label">Step 2 · Processing</p>
+            <h2>Configure discovered groups</h2>
         </div>
-    </div>
+        <div class="summary">
+            <div><strong id="summaryFile">-</strong><span>File</span></div>
+            <div><strong id="summaryRecords">0</strong><span>Numeric point records</span></div>
+            <div><strong id="summaryGroups">0</strong><span>Discovered groups</span></div>
+            <div><strong id="summarySkipped">0</strong><span>Skipped YXZ records</span></div>
+        </div>
+        <p class="help">
+            MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
+            With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
+            Optional bridge detection recognizes each separate bounded bridge span, including rare files containing two or more bridges.
+            Groups explicitly ending in <code>.EX</code> use automatic coordinate-anchored EX numbering: the first EX point starts at the nearest configured prism or rail MQ, normally four EX points share an MQ, and two points share each MQ immediately before and after a detected bridge.
+            P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
+            Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
+        </p>
+        <div class="type-legend" aria-label="Measurement type legend">
+            <span><strong>G</strong> = Rail path</span>
+            <span><strong>P</strong> = Prism path</span>
+            <span><strong>Q</strong> = Quadro</span>
+            <span><strong>QL</strong> = Quadro line</span>
+        </div>
+        <p class="swipe-hint">Swipe horizontally to review every configuration column on a phone.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Use</th>
+                    <th>Source group</th>
+                    <th>Found</th>
+                    <th>Type</th>
+                    <th>Path</th>
+                    <th>Final base prefix</th>
+                    <th>Start MQ</th>
+                    <th>Coordinate gap check</th>
+                    <th>Normal step (m)</th>
+                    <th>Bridge detection</th>
+                    <th>Bridge min (m)</th>
+                    <th>Bridge approach max (m)</th>
+                    <th>Preview</th>
+                </tr>
+                </thead>
+                <tbody id="groupsBody"></tbody>
+            </table>
+        </div>
+        <section class="schematic" aria-labelledby="schematicHeading">
+            <h3 id="schematicHeading">MQ Line Schematic</h3>
+            <p class="help">A live view of proposed MQ names, measured sections, inferred missing sections, and recognized or reserved bridge spans.</p>
+            <div class="schematic-legend">
+                <span class="legend-item"><span class="legend-dot"></span>Measured MQ or EX position</span>
+                <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ or EX position</span>
+                <span class="legend-item"><span class="legend-dot bridge"></span>Bridge section or reserved MQ</span>
+            </div>
+            <div id="mqSchematic"></div>
+        </section>
+        <div class="actions">
+            <button id="renameButton" type="button">Build Renamed IPKT</button>
+        </div>
+        <ul id="warnings" class="warning-list"></ul>
+    </section>
 
-    <!-- Scripts: Order is important -->
-    <script src="js/utils.js"></script>
-    <script src="js/parsers.js"></script>
-    <script src="js/renamer.js"></script>
-    <script src="js/main.js"></script>
+    <section id="duplicatesCard" class="card result-card hidden">
+        <div class="section-heading">
+            <p class="step-label">Step 3 · Quality check</p>
+            <h2>Review duplicate coordinates</h2>
+        </div>
+        <p id="duplicatesSummary" class="status"></p>
+        <div id="duplicateResults"></div>
+        <div class="actions">
+            <button id="downloadDuplicatesButton" class="secondary" type="button" disabled>Download Duplicate TXT Report</button>
+        </div>
+    </section>
+
+    <section id="exportCard" class="card result-card hidden">
+        <div class="section-heading">
+            <p class="step-label">Step 4 · Results</p>
+            <h2>Export processed files</h2>
+        </div>
+        <p id="exportSummary" class="status success"></p>
+        <div class="actions">
+            <button id="downloadNormalizedButton" class="secondary" type="button">Download Normalized IPKT</button>
+            <button id="downloadIpktButton" type="button">Download Renamed IPKT</button>
+            <button id="downloadReportButton" class="secondary" type="button">Download TXT Report</button>
+        </div>
+    </section>
+    <footer>Offline-capable core workflow · Leica IPKT data is processed locally on this device.</footer>
+</main>
+
+<script src="app.js"></script>
 </body>
 </html>

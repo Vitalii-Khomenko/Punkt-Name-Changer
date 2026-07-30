@@ -11,7 +11,6 @@ __pycache__/
 .pytest_cache/
 
 # Local generated outputs
-dist/
 *_renamed.*
 *_normalized.*
 *_log.txt

@@ -1,57 +1,12 @@
-# Security Policy
+# Security
 
-## Local-First Privacy
+The application is local-only and has no backend.
 
-PunktNameChanger is designed as a local browser tool. Leica files are selected
-through the browser file picker, read in memory, renamed in the same tab, and
-exported through browser downloads.
+- Selected IPKT files are read in browser memory.
+- No analytics, cookies, browser storage, or remote API calls are used.
+- Content Security Policy blocks network connections and object embedding.
+- Input size, filename components, and fixed-width output fields are validated.
+- Generated downloads are created locally with browser object URLs.
 
-The app does not intentionally use:
-
-- remote upload endpoints,
-- analytics or telemetry,
-- cookies,
-- localStorage or sessionStorage,
-- WebSocket connections,
-- third-party runtime JavaScript.
-
-## Supported Deployment
-
-The primary supported deployment is opening `Punkt-Name-Changer.html`
-directly on a smartphone or laptop.
-
-The split version (`index.html` + `css/` + `js/`) is suitable for maintenance
-and can be hosted as a static site if needed. The split version includes a
-stricter Content Security Policy because it does not need inline scripts or
-inline styles.
-
-## Content Security Policy
-
-Current browser-level policy:
-
-- `index.html` permits only same-origin scripts and styles and blocks network
-  connections.
-- `Punkt-Name-Changer.html` permits inline script/style because it must
-  remain self-contained for field use, but still blocks network connections,
-  object embedding, base URI changes, and form submission.
-- `IPKT-Coordinate-Duplicate-Checker.html` and
-  `IPKT-Group-Path-Renamer.html` use the same local-only single-file policy,
-  enforce a 10 MB input limit, accept only `.ipkt` files, render imported values
-  through text-only DOM APIs, and sanitize generated download filenames.
-
-If the app is hosted behind a web server, prefer sending equivalent HTTP
-headers:
-
-```text
-Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'
-X-Content-Type-Options: nosniff
-Referrer-Policy: no-referrer
-```
-
-For the single-file build, `script-src` and `style-src` require
-`'unsafe-inline'` unless the app is rebuilt into external local files.
-
-## Reporting Issues
-
-Do not attach private survey data to public issues. Describe the problem with a
-minimal synthetic sample whenever possible.
+Users should retain original Leica files and review generated output before
+production use.

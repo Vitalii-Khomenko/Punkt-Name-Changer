@@ -1,1003 +1,147 @@
-"""Regression and project-invariant tests for PunktNameChanger.
-
-The browser app is plain JavaScript and this machine may not have Node
-installed, so these tests use a small Python mirror of the active renaming
-rules. The suite protects field-critical behavior and project hygiene.
-"""
+"""Regression and project-invariant checks for the IPKT Group Path Renamer."""
 
 from __future__ import annotations
 
 import re
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_PATH = ROOT / "Punkt-Name-Changer.html"
-DUPLICATE_CHECKER_PATH = ROOT / "IPKT-Coordinate-Duplicate-Checker.html"
-GROUP_PATH_RENAMER_PATH = ROOT / "IPKT-Group-Path-Renamer.html"
-GROUP_PATH_SOURCE_DIR = ROOT / "ipkt-group-path-renamer"
-GROUP_PATH_SOURCE_HTML = GROUP_PATH_SOURCE_DIR / "index.html"
-GROUP_PATH_SOURCE_CSS = GROUP_PATH_SOURCE_DIR / "style.css"
-GROUP_PATH_SOURCE_JS = GROUP_PATH_SOURCE_DIR / "app.js"
-README_PATH = ROOT / "README.md"
-MISSION_PATH = ROOT / "Mission.md"
-FUNCTIONS_PATH = ROOT / "Function.txt"
-RULES_PATH = ROOT / "rules.txt"
-AGENTS_PATH = ROOT / "AGENTS.md"
-VALIDATION_PATH = ROOT / "VALIDATION.md"
-LICENSE_PATH = ROOT / "LICENSE"
-SECURITY_PATH = ROOT / "SECURITY.md"
-BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
-GROUP_PATH_BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_ipkt_group_path_renamer.py"
-NORMALIZE_SCRIPT_PATH = ROOT / "scripts" / "normalize_leica_point_ids.py"
-GLEIS_PREFIX_SCRIPT_PATH = ROOT / "scripts" / "normalize_gleis_point_prefix.py"
-MULTI_FAMILY_SCRIPT_PATH = ROOT / "scripts" / "normalize_20260613_point_ids.py"
-GENERATED_HTML_PATH = ROOT / "dist" / "Punkt-Name-Changer.generated.html"
-RENAMER_PATH = ROOT / "js" / "renamer.js"
-MAIN_PATH = ROOT / "js" / "main.js"
+SOURCE_HTML = ROOT / "index.html"
+SOURCE_CSS = ROOT / "style.css"
+SOURCE_JS = ROOT / "app.js"
+FIELD_HTML = ROOT / "IPKT-Group-Path-Renamer.html"
+BUILD_SCRIPT = ROOT / "build.py"
+README = ROOT / "README.md"
+VALIDATION = ROOT / "VALIDATION.md"
+SECURITY = ROOT / "SECURITY.md"
+AGENTS = ROOT / "AGENTS.md"
+LICENSE = ROOT / "LICENSE"
 CYRILLIC_RE = re.compile("[\\u0400-\\u04FF]")
-POINT_ID_RE = re.compile(r"^(QL|[GPQ])(0[1-9]|10)\.(\d{3})$")
 
 
-def pad2(value: int) -> str:
-    return str(int(value)).zfill(2)
-
-
-def pad3(value: int) -> str:
-    return str(int(value)).zfill(3)
-
-
-def parse_point_id(value: str) -> dict[str, object] | None:
-    match = POINT_ID_RE.match(str(value).strip().upper())
-    if not match:
-        return None
-    index = int(match.group(3))
-    if index < 1 or index > 998:
-        return None
-    family = match.group(1)
-    path = match.group(2)
-    return {
-        "normalized": f"{family}{path}.{pad3(index)}",
-        "family": family,
-        "path": path,
-        "index": index,
-        "patternKey": f"{family}{path}",
-    }
-
-
-def suffix_code(parsed: dict[str, object]) -> str:
-    if parsed["family"] == "Q":
-        return ["3", "4", "1", "2"][(int(parsed["index"]) - 1) % 4]
-    if parsed["family"] == "QL":
-        return ["1", "3", "4", "2"][(int(parsed["index"]) - 1) % 4]
-
-    is_odd = int(parsed["index"]) % 2 != 0
-    if parsed["family"] == "P":
-        return "1" if is_odd else "2"
-    return "3" if is_odd else "4"
-
-
-def is_quadro_prism(parsed: dict[str, object]) -> bool:
-    position = (int(parsed["index"]) - 1) % 4
-    if parsed["family"] == "Q":
-        return position >= 2
-    if parsed["family"] == "QL":
-        return position in {0, 3}
-    return False
-
-
-def pair_index(source_index: int) -> int:
-    return (source_index - 1) // 2
-
-
-def mq_group_index(parsed: dict[str, object]) -> int:
-    if parsed["family"] in {"Q", "QL"}:
-        return (int(parsed["index"]) - 1) // 4
-    return pair_index(int(parsed["index"]))
-
-
-def mq_index(session: dict[str, object], parsed: dict[str, object]) -> int:
-    start_mq = int(session.get("startMq", session["mqIndex"]))
-    start_pair = int(session.get("startPairIndex", mq_group_index(parsed)))
-    return start_mq + mq_group_index(parsed) - start_pair
-
-
-def make_ipkt_line(lfnr: int, point_id: str) -> str:
-    parsed = parse_point_id(point_id)
-    assert parsed is not None
-    idx = int(parsed["index"])
-    y = 2600000.0 + idx
-    x = 5700000.0 + idx
-    return (
-        f" {lfnr:06d}|  |      |  |      |      |             {point_id}|YXZ|"
-        f" {y:13.5f}| {x:13.5f}|      83.00000|2026-05-21T09:00:00|"
-        "      |    | 1.0| 1.0|                         |"
-    )
-
-
-def build_sample_ipkt() -> str:
-    lines = [
-        "# @Kommentar=",
-        "#<LfNr>+BC+<-OS->+GC+<GDim>+<GExz>+<---Punktnummer---->",
-    ]
-    lfnr = 1
-    for idx in list(range(1, 9)) + list(range(71, 79)):
-        lines.append(make_ipkt_line(lfnr, f"G01.{pad3(idx)}"))
-        lfnr += 1
-    return "\n".join(lines)
-
-
-def extract_imes_ipkt_point_id(line: str) -> str | None:
-    yxz_index = line.find("|YXZ|")
-    if yxz_index == -1:
-        return None
-    pre_yxz = line[:yxz_index]
-    last_pipe_index = pre_yxz.rfind("|")
-    if last_pipe_index == -1:
-        return None
-    return pre_yxz[last_pipe_index + 1 :].strip()
-
-
-def build_coordinate_map(text: str) -> dict[str, tuple[float, float]]:
-    coordinates: dict[str, tuple[float, float]] = {}
-    for line in text.splitlines():
-        yxz_index = line.find("|YXZ|")
-        if yxz_index == -1:
-            continue
-        point_id = extract_imes_ipkt_point_id(line)
-        parts = line[yxz_index + 5 :].split("|")
-        if point_id and len(parts) >= 2:
-            coordinates[point_id] = (float(parts[0].strip()), float(parts[1].strip()))
-    return coordinates
-
-
-def replace_imes_ipkt_id(line: str, new_name: str) -> str:
-    yxz_index = line.find("|YXZ|")
-    pre = line[:yxz_index]
-    pipe_index = pre.rfind("|")
-    original_segment = line[pipe_index + 1 : yxz_index]
-    padding = max(len(original_segment) - len(new_name), 0)
-    return line[: pipe_index + 1] + (" " * padding) + new_name + line[yxz_index:]
-
-
-def add_delta_to_numeric_field(value_text: str, delta: float) -> str:
-    match = re.match(r"^(\s*)([+-]?\d+(?:\.\d+)?)(\s*)$", value_text)
-    assert match is not None
-    numeric_text = match.group(2)
-    decimals = max(len(numeric_text.split(".")[1]), 2) if "." in numeric_text else 2
-    updated = f"{float(numeric_text) + delta:.{decimals}f}"
-    target_width = max(len(value_text) - len(match.group(3)), len(updated))
-    return updated.rjust(target_width) + match.group(3)
-
-
-def apply_quadro_prism_height_offset_to_ipkt(line: str) -> str:
-    yxz_index = line.find("|YXZ|")
-    parts = line[yxz_index + 5 :].split("|")
-    parts[2] = add_delta_to_numeric_field(parts[2], -0.04)
-    return line[: yxz_index + 5] + "|".join(parts)
-
-
-def process_ipkt_pattern(content: str, session: dict[str, object]) -> tuple[str, int]:
-    coordinates = build_coordinate_map(content)
-    output: list[str] = []
-    count = 0
-    for line in content.splitlines():
-        point_id = extract_imes_ipkt_point_id(line)
-        parsed = parse_point_id(point_id) if point_id else None
-        if parsed and parsed["patternKey"] == session["patternKey"] and not session["done"]:
-            if not session["active"] and point_id == session["startOldId"]:
-                session["active"] = True
-            if session["active"] and int(session["renamedCount"]) < int(session["limit"]):
-                if point_id in coordinates:
-                    current_mq = mq_index(session, parsed)
-                    new_name = f"{session['basePrefix']}.MQ{pad2(current_mq)}.{suffix_code(parsed)}"
-                    line = replace_imes_ipkt_id(line, new_name)
-                    if is_quadro_prism(parsed):
-                        line = apply_quadro_prism_height_offset_to_ipkt(line)
-                    session["lastSuffixCode"] = suffix_code(parsed)
-                    session["mqIndex"] = max(int(session["mqIndex"]), current_mq + 1)
-                    session["renamedCount"] = int(session["renamedCount"]) + 1
-                    count += 1
-                    if int(session["renamedCount"]) >= int(session["limit"]):
-                        session["active"] = False
-                        session["done"] = True
-        output.append(line)
-    return "\n".join(output), count
-
-
-def process_single_point_rename(
-    content: str,
-    ext: str,
-    old_id: str,
-    new_name: str,
-    coordinates: dict[str, tuple[float, float]],
-) -> tuple[str, int]:
-    if old_id not in coordinates:
-        return content, 0
-
-    output: list[str] = []
-    count = 0
-
-    for line in content.splitlines():
-        if ext in {"imes", "ipkt"}:
-            yxz_index = line.find("|YXZ|")
-            if yxz_index > -1 and extract_imes_ipkt_point_id(line) == old_id:
-                parts = line[yxz_index + 5 :].split("|")
-                if len(parts) >= 2:
-                    y = float(parts[0].strip())
-                    x = float(parts[1].strip())
-                    master_y, master_x = coordinates[old_id]
-                    if abs(master_y - y) <= 0.05 and abs(master_x - x) <= 0.05:
-                        line = replace_imes_ipkt_id(line, new_name)
-                        count += 1
-            output.append(line)
-            continue
-
-        if ext == "iroh":
-            parts = [part.strip() for part in line.split("|")]
-            pid = None
-            y = None
-            x = None
-            is_header = False
-            for part in parts:
-                if part.startswith("PID:"):
-                    pid = part[4:].strip()
-                elif part.startswith("Y:"):
-                    y = float(part[2:].strip())
-                elif part.startswith("X:"):
-                    x = float(part[2:].strip())
-                elif part == "CLS:STAT" or part == "CODE:iGeo":
-                    is_header = True
-
-            if pid == old_id and not is_header and y is not None and x is not None:
-                master_y, master_x = coordinates[old_id]
-                if abs(master_y - y) <= 0.05 and abs(master_x - x) <= 0.05:
-                    line = line.replace(old_id, new_name, 1)
-                    count += 1
-            output.append(line)
-            continue
-
-        if ext == "lqp":
-            tokens = line.strip().split()
-            if len(tokens) >= 3 and tokens[0] == old_id and old_id in coordinates:
-                second = float(tokens[1])
-                third = float(tokens[2])
-                looks_like_measurement = 0 <= second <= 400 and 0 <= third <= 400
-                if looks_like_measurement:
-                    line = line.replace(old_id, new_name, 1)
-                    count += 1
-            output.append(line)
-            continue
-
-        output.append(line)
-
-    return "\n".join(output), count
-
-
-def make_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
-    start_id = f"G01.{pad3(start_index)}"
-    parsed_start = parse_point_id(start_id)
-    assert parsed_start is not None
-    return {
-        "patternKey": "G01",
-        "basePrefix": "3560",
-        "startOldId": start_id,
-        "startIndex": start_index,
-        "startMq": start_mq,
-        "startPairIndex": mq_group_index(parsed_start),
-        "mqIndex": start_mq,
-        "limit": limit,
-        "renamedCount": 0,
-        "active": False,
-        "done": False,
-        "lastSuffixCode": None,
-    }
-
-
-def make_quadro_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
-    start_id = f"Q01.{pad3(start_index)}"
-    parsed_start = parse_point_id(start_id)
-    assert parsed_start is not None
-    return {
-        "patternKey": "Q01",
-        "basePrefix": "3560",
-        "startOldId": start_id,
-        "startIndex": start_index,
-        "startMq": start_mq,
-        "startPairIndex": mq_group_index(parsed_start),
-        "mqIndex": start_mq,
-        "limit": limit,
-        "renamedCount": 0,
-        "active": False,
-        "done": False,
-        "lastSuffixCode": None,
-    }
-
-
-def make_ql_session(start_index: int, start_mq: int, limit: int) -> dict[str, object]:
-    start_id = f"QL01.{pad3(start_index)}"
-    parsed_start = parse_point_id(start_id)
-    assert parsed_start is not None
-    return {
-        "patternKey": "QL01",
-        "basePrefix": "3560",
-        "startOldId": start_id,
-        "startIndex": start_index,
-        "startMq": start_mq,
-        "startPairIndex": mq_group_index(parsed_start),
-        "mqIndex": start_mq,
-        "limit": limit,
-        "renamedCount": 0,
-        "active": False,
-        "done": False,
-        "lastSuffixCode": None,
-    }
-
-
-class RenamingRegressionTests(unittest.TestCase):
-    def test_multi_family_normalizer_maps_bridge_ex_sequence(self) -> None:
-        source = (
-            b"# header with non-UTF8: \x84\r\n"
-            b" 000001|  |      |  |      |      |           2505.1.01|YXZ| 1.00000| 2.00000|\r\n"
-            b" 000002|  |      |  |      |      |           2500.1.01|YXZ| 3.00000| 4.00000|\r\n"
-            b" 000003|  |      |  |      |      |           2504.2.01|YXZ| 5.00000| 6.00000|\r\n"
-            b" 000004|  |      |  |      |      |           2504.1.01|YXZ| 7.00000| 8.00000|\r\n"
-            b" 000005|  |      |  |      |      |        2505.1.EX.14|YXZ| 9.00000| 10.00000|\r\n"
-            b" 000006|  |      |  |      |      |        2505.1.EX.15|YXZ| 11.00000| 12.00000|\r\n"
-            b" 000007|  |      |  |      |      |        2505.1.EX.16|YXZ| 13.00000| 14.00000|\r\n"
-            b" 000008|  |      |  |      |      |        2505.1.EX.17|YXZ| 15.00000| 16.00000|\r\n"
-            b" 000009|  |      |  |      |      |        2505.1.EX.20|YXZ| 17.00000| 18.00000|\r\n"
-            b" 000010|  |      |  |      |      |        2505.1.EX.21|YXZ| 19.00000| 20.00000|\r\n"
-            b" 000011|  |      |  |      |      |           101.EX.09|YXZ| 21.00000| 22.00000|\r\n"
-            b" 000012|  |      |  |      |      |              101.09|YXZ| 23.00000| 24.00000|\r\n"
-        )
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            input_path = Path(temp_dir) / "multi.ipkt"
-            output_path = Path(temp_dir) / "multi_normalized.ipkt"
-            input_path.write_bytes(source)
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(MULTI_FAMILY_SCRIPT_PATH),
-                    str(input_path),
-                    "--output",
-                    str(output_path),
-                ],
-                cwd=ROOT,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            normalized = output_path.read_bytes()
-
-        self.assertEqual(len(source), len(normalized))
-        self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
-        self.assertIn(b"             P02.001|YXZ| 1.00000| 2.00000|", normalized)
-        self.assertIn(b"             P03.001|YXZ| 3.00000| 4.00000|", normalized)
-        self.assertIn(b"             P04.001|YXZ| 5.00000| 6.00000|", normalized)
-        self.assertIn(b"             P05.001|YXZ| 7.00000| 8.00000|", normalized)
-        self.assertIn(b"       2505.1.MQ22-2|YXZ| 9.00000| 10.00000|", normalized)
-        self.assertIn(b"       2505.1.MQ24-1|YXZ| 11.00000| 12.00000|", normalized)
-        self.assertIn(b"       2505.1.MQ24-2|YXZ| 13.00000| 14.00000|", normalized)
-        self.assertIn(b"       2505.1.MQ25-1|YXZ| 15.00000| 16.00000|", normalized)
-        self.assertIn(b"       2505.1.MQ25-4|YXZ| 17.00000| 18.00000|", normalized)
-        self.assertIn(b"       2505.1.MQ26-1|YXZ| 19.00000| 20.00000|", normalized)
-        self.assertIn(b"          101.MQ21-1|YXZ| 21.00000| 22.00000|", normalized)
-        self.assertIn(b"              101.09|YXZ| 23.00000| 24.00000|", normalized)
-        self.assertNotIn(b"2505.1.EX.", normalized)
-        self.assertNotIn(b"101.EX.09", normalized)
-        self.assertIn("Normalized 4 numeric point IDs", result.stdout)
-        self.assertIn("Normalized 7 explicit EX point IDs", result.stdout)
-
-    def test_gleis_prefix_normalizer_preserves_suffix_and_layout(self) -> None:
-        source = (
-            b"# header with non-UTF8: \x84\r\n"
-            b" 000001|  |      |  |      |      |                  T1|YXZ| 1.00000| 2.00000|\r\n"
-            b" 000002|  |      |  |      |      |             G101.01|YXZ| 3.00000| 4.00000|\r\n"
-            b" 000003|  |      |  |      |      |             G101.02|YXZ| 5.00000| 6.00000|\r\n"
-            b" 000004|  |      |  |      |      |             G101.03|YXZ| 7.00000| 8.00000|\r\n"
-            b" 000005|  |      |  |      |      |             G101.04|YXZ| 9.00000| 10.00000|\r\n"
-            b" 000006|  |      |  |      |      |             G101.19|YXZ| 11.00000| 12.00000|\r\n"
-            b" 000007|  |      |  |      |      |             G101.21|YXZ| 13.00000| 14.00000|\r\n"
-            b" 000008|  |      |  |      |      |             G101.36|YXZ| 15.00000| 16.00000|\r\n"
-            b" 000009|  |      |  |      |      |             G101.37|YXZ| 17.00000| 18.00000|\r\n"
-            b" 000010|  |      |  |      |      |             G101.54|YXZ| 19.00000| 20.00000|\r\n"
-        )
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            input_path = Path(temp_dir) / "gleis.ipkt"
-            output_path = Path(temp_dir) / "gleis_normalized.ipkt"
-            input_path.write_bytes(source)
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(GLEIS_PREFIX_SCRIPT_PATH),
-                    str(input_path),
-                    "--output",
-                    str(output_path),
-                ],
-                cwd=ROOT,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            normalized = output_path.read_bytes()
-
-        self.assertEqual(len(source), len(normalized))
-        self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
-        self.assertIn(b"                  T1|YXZ| 1.00000| 2.00000|", normalized)
-        self.assertIn(b"             G01.001|YXZ| 3.00000| 4.00000|", normalized)
-        self.assertIn(b"             G01.002|YXZ| 5.00000| 6.00000|", normalized)
-        self.assertIn(b"             G01.005|YXZ| 7.00000| 8.00000|", normalized)
-        self.assertIn(b"             G01.006|YXZ| 9.00000| 10.00000|", normalized)
-        self.assertIn(b"             G01.037|YXZ| 11.00000| 12.00000|", normalized)
-        self.assertIn(b"             G01.039|YXZ| 13.00000| 14.00000|", normalized)
-        self.assertIn(b"             G01.054|YXZ| 15.00000| 16.00000|", normalized)
-        self.assertIn(b"             G01.057|YXZ| 17.00000| 18.00000|", normalized)
-        self.assertIn(b"             G01.090|YXZ| 19.00000| 20.00000|", normalized)
-        self.assertNotIn(b"G101.", normalized)
-        self.assertIn(
-            "Replaced 9 point IDs: G101.N -> G01.NNN with MQ step 2 outside points 19..36",
-            result.stdout,
-        )
-
-    def test_numeric_ipkt_normalizer_preserves_layout_and_groups_ex_ids(self) -> None:
-        source = (
-            b"# header with non-UTF8: \x84\r\n"
-            b" 000001|  |      |  |      |      |              101.01|YXZ| 1.00000| 2.00000|\r\n"
-            b" 000002|  |      |  |      |      |              101.90|YXZ| 3.00000| 4.00000|\r\n"
-            b" 000003|  |      |  |      |      |           101.EX.01|YXZ| 5.00000| 6.00000|\r\n"
-            b" 000004|  |      |  |      |      |           101.EX.04|YXZ| 7.00000| 8.00000|\r\n"
-            b" 000005|  |      |  |      |      |           101.EX.05|YXZ| 9.00000| 10.00000|\r\n"
-            b" 000006|  |      |  |      |      |           101.EX.16|YXZ| 11.00000| 12.00000|\r\n"
-            b" 000007|  |      |  |      |      |           101.EX.17|YXZ| 13.00000| 14.00000|\r\n"
-            b" 000008|  |      |  |      |      |           205.EX.09|YXZ| 15.00000| 16.00000|\r\n"
-        )
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            input_path = Path(temp_dir) / "sample.ipkt"
-            output_path = Path(temp_dir) / "sample_normalized.ipkt"
-            input_path.write_bytes(source)
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(NORMALIZE_SCRIPT_PATH),
-                    str(input_path),
-                    "--output",
-                    str(output_path),
-                ],
-                cwd=ROOT,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            normalized = output_path.read_bytes()
-
-        self.assertEqual(len(source), len(normalized))
-        self.assertEqual(source.count(b"\r\n"), normalized.count(b"\r\n"))
-        self.assertIn(b"             P01.001|YXZ| 1.00000| 2.00000|", normalized)
-        self.assertIn(b"             P01.090|YXZ| 3.00000| 4.00000|", normalized)
-        self.assertIn(b"          101.MQ19-1|YXZ| 5.00000| 6.00000|", normalized)
-        self.assertIn(b"          101.MQ19-4|YXZ| 7.00000| 8.00000|", normalized)
-        self.assertIn(b"          101.MQ20-1|YXZ| 9.00000| 10.00000|", normalized)
-        self.assertIn(b"          101.MQ24-2|YXZ| 11.00000| 12.00000|", normalized)
-        self.assertIn(b"          101.MQ25-1|YXZ| 13.00000| 14.00000|", normalized)
-        self.assertIn(b"          205.MQ21-1|YXZ| 15.00000| 16.00000|", normalized)
-        self.assertNotIn(b"101.MQ23-", normalized)
-        self.assertIn("Normalized 2 numeric point IDs", result.stdout)
-        self.assertIn("Normalized 6 explicit EX point IDs from all source families", result.stdout)
-        self.assertIn("Explicit EX rule: EX.14 -> MQ22-2", result.stdout)
-
-    def test_partial_ipkt_source_gap_preserves_mq_pair_numbers(self) -> None:
-        content = build_sample_ipkt()
-        session = make_session(start_index=1, start_mq=1, limit=16)
-
-        output, count = process_ipkt_pattern(content, session)
-
-        self.assertEqual(count, 16)
-        self.assertIn("3560.MQ01.3", output)
-        self.assertIn("3560.MQ04.4", output)
-        self.assertIn("3560.MQ36.3", output)
-        self.assertIn("3560.MQ39.4", output)
-        self.assertNotIn("3560.MQ05.3", output)
-        self.assertEqual(session["mqIndex"], 40)
-
-    def test_offset_start_point_renumbers_from_configured_start_mq(self) -> None:
-        content = build_sample_ipkt()
-        session = make_session(start_index=71, start_mq=1, limit=8)
-
-        output, count = process_ipkt_pattern(content, session)
-
-        self.assertEqual(count, 8)
-        self.assertIn("3560.MQ01.3", output)
-        self.assertIn("3560.MQ04.4", output)
-        self.assertNotIn("3560.MQ36.3", output)
-        self.assertEqual(session["mqIndex"], 5)
-
-    def test_quadro_pattern_maps_four_measurements_to_one_mq_and_offsets_prisms(self) -> None:
-        content = "\n".join(make_ipkt_line(idx, f"Q01.{pad3(idx)}") for idx in range(1, 5))
-        session = make_quadro_session(start_index=1, start_mq=1, limit=4)
-
-        output, count = process_ipkt_pattern(content, session)
-
-        self.assertEqual(count, 4)
-        self.assertIn("3560.MQ01.3", output)
-        self.assertIn("3560.MQ01.4", output)
-        self.assertIn("3560.MQ01.1", output)
-        self.assertIn("3560.MQ01.2", output)
-        self.assertEqual(output.count("82.96000"), 2)
-        self.assertEqual(output.count("83.00000"), 2)
-        self.assertEqual(session["mqIndex"], 2)
-
-    def test_quadro_index_groups_preserve_skipped_section_numbers(self) -> None:
-        self.assertIsNone(parse_point_id("Q12.001"))
-        self.assertIsNone(parse_point_id("QL12.001"))
-
-        indexes = list(range(1, 9)) + list(range(37, 41)) + list(range(45, 49))
-        content = "\n".join(make_ipkt_line(lfnr, f"Q01.{pad3(idx)}") for lfnr, idx in enumerate(indexes, 1))
-        session = make_quadro_session(start_index=1, start_mq=1, limit=len(indexes))
-
-        output, count = process_ipkt_pattern(content, session)
-
-        self.assertEqual(count, len(indexes))
-        self.assertIn("3560.MQ01.3", output)
-        self.assertIn("3560.MQ02.2", output)
-        self.assertIn("3560.MQ10.3", output)
-        self.assertIn("3560.MQ10.2", output)
-        self.assertIn("3560.MQ12.3", output)
-        self.assertIn("3560.MQ12.2", output)
-        self.assertEqual(session["mqIndex"], 13)
-
-    def test_ql_mode_maps_prism_rail_rail_prism_order_and_offsets_prisms(self) -> None:
-        content = "\n".join(make_ipkt_line(idx, f"QL01.{pad3(idx)}") for idx in range(1, 5))
-        session = make_ql_session(start_index=1, start_mq=1, limit=4)
-
-        output, count = process_ipkt_pattern(content, session)
-
-        self.assertEqual(count, 4)
-        self.assertIn("3560.MQ01.1", output)
-        self.assertIn("3560.MQ01.3", output)
-        self.assertIn("3560.MQ01.4", output)
-        self.assertIn("3560.MQ01.2", output)
-        self.assertEqual(output.count("82.96000"), 2)
-        self.assertEqual(output.count("83.00000"), 2)
-        self.assertEqual(session["mqIndex"], 2)
-
-    def test_ql_index_groups_preserve_skipped_section_numbers(self) -> None:
-        indexes = list(range(1, 9)) + list(range(37, 41)) + list(range(45, 49))
-        content = "\n".join(make_ipkt_line(lfnr, f"QL01.{pad3(idx)}") for lfnr, idx in enumerate(indexes, 1))
-        session = make_ql_session(start_index=1, start_mq=1, limit=len(indexes))
-
-        output, count = process_ipkt_pattern(content, session)
-
-        self.assertEqual(count, len(indexes))
-        self.assertIn("3560.MQ01.1", output)
-        self.assertIn("3560.MQ02.2", output)
-        self.assertIn("3560.MQ10.1", output)
-        self.assertIn("3560.MQ10.2", output)
-        self.assertIn("3560.MQ12.1", output)
-        self.assertIn("3560.MQ12.2", output)
-        self.assertEqual(session["mqIndex"], 13)
-
-    def test_coordinate_safety_skips_mismatches_across_supported_formats(self) -> None:
-        master = {"G01.001": (2600001.0, 5700001.0)}
-
-        ipkt = make_ipkt_line(1, "G01.001").replace("2600001.00000", "2600010.00000")
-        output, count = process_single_point_rename(ipkt, "ipkt", "G01.001", "3560.MQ01.3", master)
-        self.assertEqual(count, 0)
-        self.assertIn("G01.001", output)
-        self.assertNotIn("3560.MQ01.3", output)
-
-        iroh = "PID:             G01.001|Y:2600010.000|X:5700001.000|CLS:MEAS|"
-        output, count = process_single_point_rename(iroh, "iroh", "G01.001", "3560.MQ01.3", master)
-        self.assertEqual(count, 0)
-        self.assertIn("G01.001", output)
-        self.assertNotIn("3560.MQ01.3", output)
-
-        lqp = "G01.001 100.000 100.000 1.0"
-        output, count = process_single_point_rename(lqp, "lqp", "G01.001", "3560.MQ01.3", {})
-        self.assertEqual(count, 0)
-        self.assertIn("G01.001", output)
-
-        lqp_non_measurement = "G01.001 401.000 100.000 1.0"
-        output, count = process_single_point_rename(lqp_non_measurement, "lqp", "G01.001", "3560.MQ01.3", master)
-        self.assertEqual(count, 0)
-        self.assertIn("G01.001", output)
-
-
-class ProjectInvariantTests(unittest.TestCase):
-    def test_split_and_single_file_use_single_digit_output_suffixes(self) -> None:
-        utils = (ROOT / "js" / "utils.js").read_text(encoding="utf-8")
-        renamer = RENAMER_PATH.read_text(encoding="utf-8")
-        html = HTML_PATH.read_text(encoding="utf-8")
-
-        for source in [utils, html]:
-            self.assertIn("return ['3', '4', '1', '2'][position]", source)
-            self.assertIn("return ['1', '3', '4', '2'][position]", source)
-            self.assertIn("return isOdd ? '1' : '2'", source)
-            self.assertIn("return isOdd ? '3' : '4'", source)
-            self.assertNotIn("return ['03', '04', '01', '02'][position]", source)
-            self.assertNotIn("return ['01', '03', '04', '02'][position]", source)
-
-        for source in [renamer, html]:
-            self.assertIn("suffixCode === '4' || suffixCode === '2'", source)
-            self.assertNotIn("suffixCode === '04' || suffixCode === '02'", source)
-
+class ProjectTests(unittest.TestCase):
     def test_required_project_files_exist(self) -> None:
-        paths = [
-            HTML_PATH,
-            DUPLICATE_CHECKER_PATH,
-            GROUP_PATH_RENAMER_PATH,
-            GROUP_PATH_SOURCE_HTML,
-            GROUP_PATH_SOURCE_CSS,
-            GROUP_PATH_SOURCE_JS,
-            README_PATH,
-            MISSION_PATH,
-            FUNCTIONS_PATH,
-            RULES_PATH,
-            AGENTS_PATH,
-            VALIDATION_PATH,
-            LICENSE_PATH,
-            SECURITY_PATH,
-            BUILD_SCRIPT_PATH,
-            GROUP_PATH_BUILD_SCRIPT_PATH,
-            NORMALIZE_SCRIPT_PATH,
-            GLEIS_PREFIX_SCRIPT_PATH,
-            MULTI_FAMILY_SCRIPT_PATH,
-            RENAMER_PATH,
-            MAIN_PATH,
-        ]
-        for path in paths:
+        for path in [
+            SOURCE_HTML,
+            SOURCE_CSS,
+            SOURCE_JS,
+            FIELD_HTML,
+            BUILD_SCRIPT,
+            README,
+            VALIDATION,
+            SECURITY,
+            AGENTS,
+            LICENSE,
+        ]:
             self.assertTrue(path.exists(), f"Missing required file: {path.name}")
 
-    def test_ipkt_duplicate_checker_is_self_contained_and_local_only(self) -> None:
-        checker = DUPLICATE_CHECKER_PATH.read_text(encoding="utf-8")
-
-        self.assertIn("IPKT Coordinate Duplicate Checker", checker)
-        self.assertIn('accept=".ipkt"', checker)
-        self.assertIn('id="coordinateTolerance"', checker)
-        self.assertIn('value="0.1"', checker)
-        self.assertIn("const DEFAULT_COORDINATE_TOLERANCE = 0.1", checker)
-        self.assertIn("const COORDINATE_COMPARISON_EPSILON = 1e-9", checker)
-        self.assertIn("tolerance + COORDINATE_COMPARISON_EPSILON", checker)
-        self.assertIn("toleranceInput.value = String(DEFAULT_COORDINATE_TOLERANCE)", checker)
-        self.assertIn("function parseIpktRecords", checker)
-        self.assertIn("function findDuplicateGroups", checker)
-        self.assertIn("function findMatchingPairs", checker)
-        self.assertIn("function buildReport", checker)
-        self.assertIn("Generated:", checker)
-        self.assertIn("Direct matching pairs:", checker)
-        self.assertIn("function getSafeDownloadBaseName", checker)
-        self.assertIn("connect-src 'none'", checker)
-        self.assertIn("object-src 'none'", checker)
-        self.assertIn("never uploaded or modified", checker)
-        self.assertNotRegex(checker, r'<script\s+src=')
-        self.assertNotRegex(checker, r'<link[^>]+href=')
-        self.assertIsNone(CYRILLIC_RE.search(checker))
-
-    def test_ipkt_group_path_renamer_is_self_contained_and_preserves_source_index_logic(self) -> None:
-        renamer = GROUP_PATH_RENAMER_PATH.read_text(encoding="utf-8")
-
-        self.assertIn("IPKT Group Path Renamer", renamer)
-        self.assertIn('accept=".ipkt"', renamer)
-        self.assertIn("function parseSourcePointId", renamer)
-        self.assertIn("function parseIpktBytes", renamer)
-        self.assertIn("isExplicitEx: Boolean(explicitExMatch)", renamer)
-        self.assertIn("function buildExplicitExChunks", renamer)
-        self.assertIn("function findExplicitExAnchor", renamer)
-        self.assertIn("function getExplicitExPlan", renamer)
-        self.assertIn("function buildExplicitExName", renamer)
-        self.assertIn("return `${config.basePrefix}.MQ${mapping.mqIndex}-${mapping.position}`", renamer)
-        self.assertIn("reservedMqIndex: mqIndex + 1", renamer)
-        self.assertIn("no configured prism or rail MQ is available for coordinate anchoring", renamer)
-        self.assertIn("left.distance - right.distance", renamer)
-        self.assertIn("four positions normally, two positions beside bridges", renamer)
-        self.assertIn("if (group.isExplicitEx)", renamer)
-        self.assertIn("function findDuplicateGroups", renamer)
-        self.assertIn("function renderDuplicateAnalysis", renamer)
-        self.assertIn("function buildDuplicateReport", renamer)
-        self.assertIn('id="downloadDuplicatesButton"', renamer)
-        self.assertIn("Direct matching pairs:", renamer)
-        self.assertIn("function getSafeDownloadBaseName", renamer)
-        self.assertIn("function getMqIndex", renamer)
-        self.assertIn("function buildSections", renamer)
-        self.assertIn("function getSectionDistance", renamer)
-        self.assertIn("function detectBridgeTransitions", renamer)
-        self.assertIn("function getCoordinateAwareMqPlan", renamer)
-        self.assertIn("Math.round(distance / config.normalStep)", renamer)
-        self.assertIn("Math.max(sourceAdvance, coordinateAdvance)", renamer)
-        self.assertIn("approachBefore <= config.bridgeApproachMax", renamer)
-        self.assertIn("approachAfter <= config.bridgeApproachMax", renamer)
-        self.assertIn("while (index < distances.length)", renamer)
-        self.assertIn("Detected separate bridges:", renamer)
-        self.assertIn("Bridge ${bridgeIndex + 1} detected:", renamer)
-        self.assertIn("coordinate MQ skipping suppressed", renamer)
-        self.assertIn("function getSuffix", renamer)
-        self.assertIn("function isQuadroPrism", renamer)
-        self.assertIn("function replaceFields", renamer)
-        self.assertIn("function applyQuadroHeightOffsets", renamer)
-        self.assertIn("function buildReport", renamer)
-        self.assertIn("normalizedBytes: replaceFields", renamer)
-        self.assertIn("Download Normalized IPKT", renamer)
-        self.assertIn("Coordinate checks preserved", renamer)
-        self.assertIn('td input[data-role="pathNumber"]', renamer)
-        self.assertNotIn("<th>Start source index</th>", renamer)
-        self.assertIn("createInput('hidden', 'startSourceIndex', String(group.minIndex))", renamer)
-        self.assertIn('td select[data-role="type"] { width: 62px; }', renamer)
-        self.assertIn('class="type-legend"', renamer)
-        self.assertIn("['G', 'P', 'Q', 'QL'].forEach", renamer)
-        self.assertNotIn("P - Prism path", renamer)
-        self.assertIn('td input[data-role="bridgeApproachMax"]', renamer)
-        self.assertIn('td:has(input[type="checkbox"])', renamer)
-        self.assertIn('id="mqSchematic"', renamer)
-        self.assertIn("function renderMqSchematic", renamer)
-        self.assertIn(".mq-node.missing", renamer)
-        self.assertIn("measured bridge section", renamer)
-        self.assertIn("reserved bridge MQ", renamer)
-        self.assertIn("label: `MQ${pad2(mqIndex)}-${position}`", renamer)
-        self.assertIn("missing EX.${pad2(sourceIndex)} position", renamer)
-        self.assertIn("positions ${measuredPositionCount}", renamer)
-        self.assertIn("Measured MQ or EX position", renamer)
-        self.assertIn("Missing MQ or EX position", renamer)
-        self.assertIn("Editable output prefix for the automatic EX MQ names.", renamer)
-        self.assertNotIn("basePrefix.disabled = true", renamer)
-        self.assertIn("Math.floor((sourceIndex - 1) / size)", renamer)
-        self.assertIn("output.fill(32, record.fieldStart, record.fieldEnd)", renamer)
-        self.assertIn("connect-src 'none'", renamer)
-        self.assertIn("object-src 'none'", renamer)
-        self.assertIn("never uploaded", renamer)
-        self.assertNotRegex(renamer, r'<script\s+src=')
-        self.assertNotRegex(renamer, r'<link[^>]+href=')
-        self.assertIsNone(CYRILLIC_RE.search(renamer))
-
-    def test_group_path_split_sources_build_the_field_file_exactly(self) -> None:
+    def test_javascript_syntax(self) -> None:
         subprocess.run(
-            [sys.executable, str(GROUP_PATH_BUILD_SCRIPT_PATH)],
+            ["node", "--check", str(SOURCE_JS)],
             cwd=ROOT,
             check=True,
             capture_output=True,
             text=True,
         )
 
-        split_html = GROUP_PATH_SOURCE_HTML.read_text(encoding="utf-8")
-        split_css = GROUP_PATH_SOURCE_CSS.read_text(encoding="utf-8")
-        split_js = GROUP_PATH_SOURCE_JS.read_text(encoding="utf-8")
-        field_html = GROUP_PATH_RENAMER_PATH.read_text(encoding="utf-8")
+    def test_active_ipkt_workflows_are_present(self) -> None:
+        source = SOURCE_JS.read_text(encoding="utf-8")
+        for marker in [
+            "function parseSourcePointId",
+            "function parseIpktBytes",
+            "function findDuplicateGroups",
+            "function renderDuplicateAnalysis",
+            "function buildDuplicateReport",
+            "function getCoordinateAwareMqPlan",
+            "function detectBridgeTransitions",
+            "function buildExplicitExChunks",
+            "function findExplicitExAnchor",
+            "function getExplicitExPlan",
+            "function buildExplicitExName",
+            "function replaceFields",
+            "function applyQuadroHeightOffsets",
+            "function buildReport",
+            "normalizedBytes: replaceFields",
+        ]:
+            self.assertIn(marker, source)
+
+        html = SOURCE_HTML.read_text(encoding="utf-8")
+        for marker in [
+            "Download Normalized IPKT",
+            "Download Renamed IPKT",
+            "Download TXT Report",
+        ]:
+            self.assertIn(marker, html)
+
+    def test_split_sources_build_the_field_file_exactly(self) -> None:
+        subprocess.run(
+            [sys.executable, str(BUILD_SCRIPT)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        split_html = SOURCE_HTML.read_text(encoding="utf-8")
+        css = SOURCE_CSS.read_text(encoding="utf-8").strip()
+        javascript = SOURCE_JS.read_text(encoding="utf-8").strip()
+        field = FIELD_HTML.read_text(encoding="utf-8")
 
         self.assertIn('<link rel="stylesheet" href="style.css">', split_html)
         self.assertIn('<script src="app.js"></script>', split_html)
-        self.assertIn("script-src 'self'; style-src 'self';", split_html)
-        self.assertNotIn('<link rel="stylesheet" href="style.css">', field_html)
-        self.assertNotIn('<script src="app.js"></script>', field_html)
-        self.assertIn("script-src 'self' 'unsafe-inline'", field_html)
-        self.assertIn(split_css.strip(), field_html)
-        self.assertIn(split_js.strip(), field_html)
+        self.assertNotIn('<link rel="stylesheet" href="style.css">', field)
+        self.assertNotIn('<script src="app.js"></script>', field)
+        self.assertIn(css, field)
+        self.assertIn(javascript, field)
 
-    def test_group_path_interface_uses_geomonitoring_design_system(self) -> None:
-        split_html = GROUP_PATH_SOURCE_HTML.read_text(encoding="utf-8")
-        css = GROUP_PATH_SOURCE_CSS.read_text(encoding="utf-8")
-        field_html = GROUP_PATH_RENAMER_PATH.read_text(encoding="utf-8")
-
-        for source in [split_html, field_html]:
-            self.assertIn('class="product-header"', source)
-            self.assertIn("GeoMonitoring field tools", source)
-            self.assertIn("Local processing", source)
-            self.assertIn('class="card source-card"', source)
-            self.assertIn('class="card result-card hidden"', source)
-            self.assertIn('class="quiet"', source)
-            self.assertIn('class="swipe-hint"', source)
-
-        for token in [
-            "--ink-950: #071a22",
-            "--ink-900: #0b202a",
-            "--canvas: #eaf0f2",
-            "--primary-700: #075f5a",
-            "--primary-500: #0b8b82",
-            "--primary-100: #d9efec",
-        ]:
-            self.assertIn(token, css)
-        self.assertIn("min-width: 320px", css)
-        self.assertIn("overflow-x: hidden", css)
-        self.assertIn("min-height: 44px", css)
-        self.assertIn(":focus-visible", css)
-        self.assertIn("@media (max-width: 760px)", css)
-        self.assertIn("@media (prefers-reduced-motion: reduce)", css)
-
-    def test_explicit_ex_mapping_is_shared_and_ex_only(self) -> None:
-        general_script = NORMALIZE_SCRIPT_PATH.read_text(encoding="utf-8")
-        multi_family_script = MULTI_FAMILY_SCRIPT_PATH.read_text(encoding="utf-8")
-
-        for source in [general_script, multi_family_script]:
-            self.assertIn("def get_bridge_ex_mapping(ex_index: int)", source)
-            self.assertIn("if ex_index <= 14:", source)
-            self.assertIn("if ex_index <= 16:", source)
-            self.assertIn("25 + (ex_index - 17) // 4", source)
-
-        self.assertIn(r'EX_ID_RE = re.compile(rb"^([A-Za-z0-9._-]+)\.EX\.(\d{1,3})$")', multi_family_script)
-        self.assertIn(r'ex_id_re = re.compile(rb"^([A-Za-z0-9._-]+)\.EX\.(\d{1,3})$")', general_script)
-        self.assertIn("numeric_match = SOURCE_ID_RE.fullmatch(point_id)", multi_family_script)
-
-    def test_project_text_files_do_not_contain_cyrillic(self) -> None:
-        for path in [README_PATH, MISSION_PATH, FUNCTIONS_PATH, RULES_PATH, AGENTS_PATH, VALIDATION_PATH]:
-            text = path.read_text(encoding="utf-8")
-            self.assertIsNone(CYRILLIC_RE.search(text), f"Cyrillic text found in {path.name}")
-
-    def test_split_and_single_file_use_source_pair_mq_numbering(self) -> None:
-        renamer = RENAMER_PATH.read_text(encoding="utf-8")
-        main = MAIN_PATH.read_text(encoding="utf-8")
-        html = HTML_PATH.read_text(encoding="utf-8")
-
-        for source in [renamer, html]:
-            self.assertIn("function getPairIndexFromPointIndex", source)
-            self.assertIn("function getMqGroupIndexFromParsedPoint", source)
-            self.assertIn("getMqIndexForParsedPoint(session, parsed)", source)
-            self.assertIn("session.mqIndex = Math.max(session.mqIndex, mqIndex + 1)", source)
-            self.assertIn("applyQuadroPrismHeightOffset(line, patternType)", source)
-
-        for source in [main, html]:
-            self.assertIn("startMq: cfg.startMq", source)
-            self.assertIn("startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`))", source)
-
-    def test_single_file_build_stays_synchronized_with_split_sources(self) -> None:
-        html = HTML_PATH.read_text(encoding="utf-8")
-        css = (ROOT / "css" / "style.css").read_text(encoding="utf-8").strip()
-        style_match = re.search(r"<style>\n(.*?)\n    </style>", html, re.DOTALL)
-
-        self.assertIsNotNone(style_match)
-        self.assertEqual(css, style_match.group(1).strip())
-
-        for path in [ROOT / "js" / "utils.js", ROOT / "js" / "parsers.js", RENAMER_PATH, MAIN_PATH]:
-            source = path.read_text(encoding="utf-8")
-            for function_name in re.findall(r"^function\s+([A-Za-z0-9_]+)\s*\(", source, re.MULTILINE):
-                self.assertIn(f"function {function_name}(", html, f"{function_name} missing from single-file build")
-
-    def test_mobile_ui_keeps_field_work_helpers(self) -> None:
-        css = (ROOT / "css" / "style.css").read_text(encoding="utf-8")
-        utils = (ROOT / "js" / "utils.js").read_text(encoding="utf-8")
-        html = HTML_PATH.read_text(encoding="utf-8")
-        split_html = (ROOT / "index.html").read_text(encoding="utf-8")
-
-        for source in [html, split_html]:
-            self.assertIn("viewport-fit=cover", source)
-            self.assertIn('class="action-row"', source)
-            self.assertIn('inputmode="numeric"', source)
-            self.assertIn('id="busyStatus"', source)
-            self.assertIn('id="exportSummary"', source)
-
-        for source in [css, html]:
-            self.assertIn("position: sticky", source)
-            self.assertIn("env(safe-area-inset-bottom)", source)
-            self.assertIn("-webkit-overflow-scrolling: touch", source)
-            self.assertIn(".status-line", source)
-            self.assertIn(".summary-box", source)
-
-        for source in [utils, html]:
-            self.assertIn("logDiv.scrollTop = logDiv.scrollHeight", source)
-
-        main = MAIN_PATH.read_text(encoding="utf-8")
-        for source in [main, html]:
-            self.assertIn("function setAppBusy", source)
-            self.assertIn("function updateExportSummary", source)
-            self.assertIn("setAppBusy(true, 'Reading selected files...')", source)
-            self.assertIn("setAppBusy(true, 'Renaming points...')", source)
-
-    def test_security_hardening_checks_are_present(self) -> None:
-        utils = (ROOT / "js" / "utils.js").read_text(encoding="utf-8")
-        main = MAIN_PATH.read_text(encoding="utf-8")
-        html = HTML_PATH.read_text(encoding="utf-8")
-
-        for source in [utils, html]:
-            self.assertIn("SUPPORTED_INPUT_EXTENSIONS", source)
-            self.assertIn("MAX_INPUT_FILE_SIZE_BYTES", source)
-            self.assertIn("MAX_SESSION_FILE_SIZE_BYTES", source)
-            self.assertIn("function filterAcceptedInputFiles", source)
-            self.assertIn("function isSafeNameComponent", source)
-            self.assertIn("function isSafeOutputSuffix", source)
-            self.assertIn("/^[A-Za-z0-9._-]+$/", source)
-            self.assertIn("/^[A-Za-z0-9._-]*$/", source)
-
-        for source in [main, html]:
-            self.assertIn("filterAcceptedInputFiles(selectedFiles)", source)
-            self.assertIn("No supported files remained after safety checks.", source)
-            self.assertIn("New Base Prefix may contain only letters, numbers, dot, underscore, and hyphen.", source)
-            self.assertIn("Output Suffix may contain only letters, numbers, dot, underscore, and hyphen.", source)
-
-    def test_csp_and_privacy_guidance_are_present(self) -> None:
-        html = HTML_PATH.read_text(encoding="utf-8")
-        split_html = (ROOT / "index.html").read_text(encoding="utf-8")
-        readme = README_PATH.read_text(encoding="utf-8")
-        security = SECURITY_PATH.read_text(encoding="utf-8")
-
-        for source in [html, split_html]:
-            self.assertIn('http-equiv="Content-Security-Policy"', source)
+    def test_local_only_security_controls(self) -> None:
+        split_html = SOURCE_HTML.read_text(encoding="utf-8")
+        field = FIELD_HTML.read_text(encoding="utf-8")
+        for source in [split_html, field]:
             self.assertIn("connect-src 'none'", source)
             self.assertIn("object-src 'none'", source)
             self.assertIn("form-action 'none'", source)
+            self.assertIn("never uploaded", source)
+        self.assertIn("script-src 'self'; style-src 'self';", split_html)
+        self.assertIn("script-src 'self' 'unsafe-inline'", field)
 
-        self.assertIn("Files stay local in the browser tab and are not uploaded.", readme)
-        self.assertIn("The app does not intentionally use:", security)
-        self.assertIn("Content-Security-Policy", security)
-
-    def test_generated_single_file_script_writes_only_to_dist(self) -> None:
-        script = BUILD_SCRIPT_PATH.read_text(encoding="utf-8")
-        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
-
-        self.assertIn('DIST_DIR = ROOT / "dist"', script)
-        self.assertIn('OUTPUT_PATH = DIST_DIR / "Punkt-Name-Changer.generated.html"', script)
-        self.assertIn("does not modify", script)
-        self.assertIn("Punkt-Name-Changer.html", script)
-        self.assertIn("dist/", gitignore)
-
-    def test_generated_single_file_build_contains_required_runtime_features(self) -> None:
-        smartphone_html_before = HTML_PATH.read_text(encoding="utf-8")
-
-        subprocess.run(
-            [sys.executable, str(BUILD_SCRIPT_PATH)],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        smartphone_html_after = HTML_PATH.read_text(encoding="utf-8")
-        generated = GENERATED_HTML_PATH.read_text(encoding="utf-8")
-
-        self.assertEqual(smartphone_html_before, smartphone_html_after)
-        self.assertTrue(GENERATED_HTML_PATH.exists())
-        self.assertIn("Leica Mobile Renamer V3 (Generated Single File)", generated)
-        self.assertIn('http-equiv="Content-Security-Policy"', generated)
-        self.assertIn("script-src 'self' 'unsafe-inline'", generated)
-        self.assertIn("style-src 'self' 'unsafe-inline'", generated)
-        self.assertIn("connect-src 'none'", generated)
-        self.assertIn("object-src 'none'", generated)
-        self.assertIn("form-action 'none'", generated)
-        self.assertNotIn('href="css/style.css"', generated)
-        self.assertNotRegex(generated, r'<script\s+src="js/')
-
+    def test_geomonitoring_responsive_interface(self) -> None:
+        html = SOURCE_HTML.read_text(encoding="utf-8")
+        css = SOURCE_CSS.read_text(encoding="utf-8")
         for marker in [
-            'id="busyStatus"',
-            'id="exportSummary"',
-            "SUPPORTED_INPUT_EXTENSIONS",
-            "MAX_INPUT_FILE_SIZE_BYTES",
-            "MAX_SESSION_FILE_SIZE_BYTES",
-            "function filterAcceptedInputFiles",
-            "function isSafeNameComponent",
-            "function isSafeOutputSuffix",
-            "getMqIndexForParsedPoint(session, parsed)",
-            "startPairIndex: getMqGroupIndexFromParsedPoint(parsePointId(`${cfg.patternKey}.${pad3(cfg.startIndex)}`))",
-            "session.mqIndex = Math.max(session.mqIndex, mqIndex + 1)",
-            "applyQuadroPrismHeightOffset(line, patternType)",
-            "setAppBusy(true, 'Reading selected files...')",
-            "setAppBusy(true, 'Renaming points...')",
-            "position: sticky",
-            ".summary-box",
+            'class="product-header"',
+            "GeoMonitoring field tools",
+            "Local processing",
+            'class="card source-card"',
+            'class="card result-card hidden"',
+            'class="quiet"',
+            'class="swipe-hint"',
         ]:
-            self.assertIn(marker, generated)
+            self.assertIn(marker, html)
+        for marker in [
+            "--ink-950: #071a22",
+            "--canvas: #eaf0f2",
+            "--primary-700: #075f5a",
+            "min-width: 320px",
+            "overflow-x: hidden",
+            "min-height: 44px",
+            ":focus-visible",
+            "@media (max-width: 760px)",
+            "@media (prefers-reduced-motion: reduce)",
+        ]:
+            self.assertIn(marker, css)
 
-    def test_project_requires_validation_commit_and_github_push(self) -> None:
-        agents = AGENTS_PATH.read_text(encoding="utf-8")
-        rules = RULES_PATH.read_text(encoding="utf-8")
-        self.assertIn("python tests/run_validation.py", agents)
-        self.assertIn("push the updated project to GitHub", agents)
-        self.assertIn("push to GitHub", rules)
-
-    def test_readme_documents_testing_and_license(self) -> None:
-        readme = README_PATH.read_text(encoding="utf-8")
-        self.assertIn("python tests/run_validation.py", readme)
-        self.assertIn("MIT License", readme)
+    def test_project_text_is_english_only(self) -> None:
+        for path in [SOURCE_HTML, SOURCE_CSS, SOURCE_JS, README, VALIDATION, SECURITY, AGENTS]:
+            self.assertIsNone(CYRILLIC_RE.search(path.read_text(encoding="utf-8")), path.name)
 
     def test_license_is_mit(self) -> None:
-        license_text = LICENSE_PATH.read_text(encoding="utf-8")
-        self.assertTrue(license_text.startswith("MIT License"))
-        self.assertIn("Vitalii Khomenko", license_text)
+        text = LICENSE.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("MIT License"))
 
 
 if __name__ == "__main__":
