@@ -38,6 +38,11 @@ Y/X differences.
 point groups use arbitrary source numbers, such as `2505.1.01`, `101.7`, or
 `G101.19`.
 
+The field file is generated from the canonical split sources in
+`ipkt-group-path-renamer/`. Its interface follows the GeoMonitoring Interface
+Standard with explicit source, processing, quality-check, and export stages,
+accessible 44 px controls, visible keyboard focus, and responsive tables.
+
 1. Open the HTML file and select one `.ipkt` file.
 2. Set the duplicate-coordinate tolerance if needed, then press **Discover Point
    Groups**. The tool groups point IDs by everything before their final numeric
@@ -453,7 +458,10 @@ The on-screen log shows:
 ```
 Punkt-Name-Changer.html  — all-in-one version (use on mobile)
 IPKT-Coordinate-Duplicate-Checker.html — standalone duplicate-coordinate diagnostic tool
-IPKT-Group-Path-Renamer.html — standalone arbitrary-group to final-MQ renamer
+IPKT-Group-Path-Renamer.html — generated standalone arbitrary-group to final-MQ renamer
+ipkt-group-path-renamer/index.html — canonical split HTML for the group/path renamer
+ipkt-group-path-renamer/style.css — GeoMonitoring design-system styles
+ipkt-group-path-renamer/app.js — group/path renaming behavior
 index.html                    — multi-file version (use on desktop)
 css/style.css                 — mobile-first styles
 js/utils.js                   — global state, helpers, logging
@@ -463,6 +471,7 @@ js/main.js                    — UI orchestration, session management, export
 Mission.md                    — detailed product/logic mission document
 tests/run_validation.py       — regression validation suite
 scripts/build_singlefile_dist.py — generated single-file builder, writes only to dist/
+scripts/build_ipkt_group_path_renamer.py — rebuilds the group/path field file
 AGENTS.md                     — agent instructions
 rules.txt                     — development and publishing rules
 VALIDATION.md                 — validation notes
@@ -488,6 +497,15 @@ python scripts/build_singlefile_dist.py
 ```
 
 The generated file is written to `dist/Punkt-Name-Changer.generated.html`.
+
+Rebuild the self-contained group/path renamer after editing its split sources:
+
+```bash
+python scripts/build_ipkt_group_path_renamer.py
+```
+
+This deterministically replaces `IPKT-Group-Path-Renamer.html` with inline CSS
+and JavaScript while preserving a local-only Content Security Policy.
 
 ## License
 

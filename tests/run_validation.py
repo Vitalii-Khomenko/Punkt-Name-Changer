@@ -19,6 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "Punkt-Name-Changer.html"
 DUPLICATE_CHECKER_PATH = ROOT / "IPKT-Coordinate-Duplicate-Checker.html"
 GROUP_PATH_RENAMER_PATH = ROOT / "IPKT-Group-Path-Renamer.html"
+GROUP_PATH_SOURCE_DIR = ROOT / "ipkt-group-path-renamer"
+GROUP_PATH_SOURCE_HTML = GROUP_PATH_SOURCE_DIR / "index.html"
+GROUP_PATH_SOURCE_CSS = GROUP_PATH_SOURCE_DIR / "style.css"
+GROUP_PATH_SOURCE_JS = GROUP_PATH_SOURCE_DIR / "app.js"
 README_PATH = ROOT / "README.md"
 MISSION_PATH = ROOT / "Mission.md"
 FUNCTIONS_PATH = ROOT / "Function.txt"
@@ -28,6 +32,7 @@ VALIDATION_PATH = ROOT / "VALIDATION.md"
 LICENSE_PATH = ROOT / "LICENSE"
 SECURITY_PATH = ROOT / "SECURITY.md"
 BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_singlefile_dist.py"
+GROUP_PATH_BUILD_SCRIPT_PATH = ROOT / "scripts" / "build_ipkt_group_path_renamer.py"
 NORMALIZE_SCRIPT_PATH = ROOT / "scripts" / "normalize_leica_point_ids.py"
 GLEIS_PREFIX_SCRIPT_PATH = ROOT / "scripts" / "normalize_gleis_point_prefix.py"
 MULTI_FAMILY_SCRIPT_PATH = ROOT / "scripts" / "normalize_20260613_point_ids.py"
@@ -631,6 +636,9 @@ class ProjectInvariantTests(unittest.TestCase):
             HTML_PATH,
             DUPLICATE_CHECKER_PATH,
             GROUP_PATH_RENAMER_PATH,
+            GROUP_PATH_SOURCE_HTML,
+            GROUP_PATH_SOURCE_CSS,
+            GROUP_PATH_SOURCE_JS,
             README_PATH,
             MISSION_PATH,
             FUNCTIONS_PATH,
@@ -640,6 +648,7 @@ class ProjectInvariantTests(unittest.TestCase):
             LICENSE_PATH,
             SECURITY_PATH,
             BUILD_SCRIPT_PATH,
+            GROUP_PATH_BUILD_SCRIPT_PATH,
             NORMALIZE_SCRIPT_PATH,
             GLEIS_PREFIX_SCRIPT_PATH,
             MULTI_FAMILY_SCRIPT_PATH,
@@ -748,6 +757,59 @@ class ProjectInvariantTests(unittest.TestCase):
         self.assertNotRegex(renamer, r'<script\s+src=')
         self.assertNotRegex(renamer, r'<link[^>]+href=')
         self.assertIsNone(CYRILLIC_RE.search(renamer))
+
+    def test_group_path_split_sources_build_the_field_file_exactly(self) -> None:
+        subprocess.run(
+            [sys.executable, str(GROUP_PATH_BUILD_SCRIPT_PATH)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        split_html = GROUP_PATH_SOURCE_HTML.read_text(encoding="utf-8")
+        split_css = GROUP_PATH_SOURCE_CSS.read_text(encoding="utf-8")
+        split_js = GROUP_PATH_SOURCE_JS.read_text(encoding="utf-8")
+        field_html = GROUP_PATH_RENAMER_PATH.read_text(encoding="utf-8")
+
+        self.assertIn('<link rel="stylesheet" href="style.css">', split_html)
+        self.assertIn('<script src="app.js"></script>', split_html)
+        self.assertIn("script-src 'self'; style-src 'self';", split_html)
+        self.assertNotIn('<link rel="stylesheet" href="style.css">', field_html)
+        self.assertNotIn('<script src="app.js"></script>', field_html)
+        self.assertIn("script-src 'self' 'unsafe-inline'", field_html)
+        self.assertIn(split_css.strip(), field_html)
+        self.assertIn(split_js.strip(), field_html)
+
+    def test_group_path_interface_uses_geomonitoring_design_system(self) -> None:
+        split_html = GROUP_PATH_SOURCE_HTML.read_text(encoding="utf-8")
+        css = GROUP_PATH_SOURCE_CSS.read_text(encoding="utf-8")
+        field_html = GROUP_PATH_RENAMER_PATH.read_text(encoding="utf-8")
+
+        for source in [split_html, field_html]:
+            self.assertIn('class="product-header"', source)
+            self.assertIn("GeoMonitoring field tools", source)
+            self.assertIn("Local processing", source)
+            self.assertIn('class="card source-card"', source)
+            self.assertIn('class="card result-card hidden"', source)
+            self.assertIn('class="quiet"', source)
+            self.assertIn('class="swipe-hint"', source)
+
+        for token in [
+            "--ink-950: #071a22",
+            "--ink-900: #0b202a",
+            "--canvas: #eaf0f2",
+            "--primary-700: #075f5a",
+            "--primary-500: #0b8b82",
+            "--primary-100: #d9efec",
+        ]:
+            self.assertIn(token, css)
+        self.assertIn("min-width: 320px", css)
+        self.assertIn("overflow-x: hidden", css)
+        self.assertIn("min-height: 44px", css)
+        self.assertIn(":focus-visible", css)
+        self.assertIn("@media (max-width: 760px)", css)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", css)
 
     def test_explicit_ex_mapping_is_shared_and_ex_only(self) -> None:
         general_script = NORMALIZE_SCRIPT_PATH.read_text(encoding="utf-8")
