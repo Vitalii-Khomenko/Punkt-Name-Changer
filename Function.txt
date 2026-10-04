@@ -98,6 +98,8 @@ Explicit EX planning
 
 Configuration UI and schematic
 
+- invalidateExport(): discards the latest renamed output and hides the export
+  card whenever the configuration changes after a build.
 - createCell(row, content): appends a table cell.
 - createInput(type, role, value, className): creates a configuration input with
   a stable data-role identifier.

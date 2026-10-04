@@ -1,18 +1,132 @@
 # Mission: IPKT Group Path Renamer
 
-## 1. Purpose
+## 1. Why this project exists
 
-The project provides one reliable, local-first browser tool for converting
-arbitrary Leica IPKT point families into normalized path IDs and final MQ
-names. It is intended for field and office use on phones and laptops without a
-backend or upload service.
+### 1.1 Context
 
-The application must make its decisions reviewable. Before export, the user
-can see discovered source groups, configuration, inferred missing sections,
-recognized bridges, automatic EX positions, duplicate coordinates, and the
-proposed MQ line.
+Track survey crews measure points with a Leica instrument and receive an IPKT
+file: a fixed-width text file with one line per measured point. Each line carries
+a Point ID, Y, X, and height. The Point IDs are typed or generated in the field,
+so they describe the measurement session, not the final project structure.
+Typical field IDs look like this:
 
-## 2. Distribution and source architecture
+```text
+101.7
+G101.19
+2505.1.01
+2505.1.EX.14
+```
+
+The office and the downstream processing expect something different: a
+structured ID that says where along the track a point belongs and which physical
+point of that location it is:
+
+```text
+<prefix>.MQ<nn>.<suffix>        for example 3560.MQ08.3
+<prefix>.MQ<n>-<position>       for example 3560.MQ12-2 (explicit EX points)
+```
+
+Here an MQ is a numbered measurement cross-section along the track, and the
+suffix identifies the point inside that cross-section (prism or rail side,
+quadro corner).
+
+Turning the first kind of ID into the second is the whole job of this tool.
+
+### 1.2 The problem
+
+Doing this conversion by hand, or with a generic find-and-replace, is slow and
+unreliable because the correct MQ number is not simply "the Nth row":
+
+- **Partial measurements.** A crew may skip sections, start in the middle of a
+  track, or measure a path in several sessions. The MQ number must follow the
+  real position, not the row count.
+- **Gaps visible only in coordinates.** Sometimes a whole section was never
+  measured and the source index shows no gap, but the coordinates show a long
+  jump between two neighbors. The missing MQs must still be reserved so later
+  sections keep their true numbers.
+- **Bridges.** On a bridge no points are measured. A long coordinate span there
+  is expected and must not be mistaken for missing sections.
+- **EX points.** Extra points (`.EX`) have no regular index. Their place is
+  defined only by where they are, so they must be anchored to the nearest
+  measured prism or rail section by coordinates.
+- **Per-type suffix rules.** Rail, prism, quadro, and quadro-line groups all use
+  different suffix orders and section sizes.
+- **Quadro prism heights.** Certain quadro positions need a fixed -0.04 m height
+  correction, applied to those points only.
+- **Fixed-width format.** A renamed ID must stay inside its original column so
+  every other byte of the file, and every field alignment, is unchanged. A
+  naive rewrite can shift columns and corrupt the file for later tools.
+- **Duplicate coordinates.** Accidental repeat measurements are easy to miss in
+  hundreds of lines and should be reported before the data is renamed.
+
+A single mistake silently corrupts the numbering of a whole path, and it is
+usually found late, after the crew has left the site.
+
+### 1.3 How this tool answers the problem
+
+| Need | Design decision |
+| --- | --- |
+| Correct numbering after partial or irregular measurement | MQ numbers come from original source indexes plus coordinate-aware gaps; they are never a row count. |
+| Trust before export | Everything the tool infers is shown first: groups, proposed names, MQ line, gaps, bridges, EX anchors, duplicates. |
+| Traceability | A rename report lists every configuration and every `source -> normalized -> final` mapping per line. |
+| Safe re-runs | The normalized IPKT (`G01.001`, `P02.001`, ...) is a stable intermediate that does not depend on the project prefix. |
+| No damage to the file | Output starts as a byte-for-byte clone; only the Point ID field (and Q/QL prism heights) change. |
+| Field use without connectivity | One self-contained HTML file, no backend, no install, works offline on a phone or laptop. |
+| Confidential survey data | Files stay in browser memory and are never uploaded; the Content Security Policy blocks network connections. |
+| Fewer silent failures | Conflicts, invalid ranges, overflowing fields, and ambiguous names stop the export with a visible message. |
+
+### 1.4 Users and environments
+
+- Survey technicians checking and renaming data on site, often on a phone with
+  gloves, bright light, and a poor connection.
+- Office staff preparing deliveries from the same files on a laptop.
+- Reviewers who need evidence of how every name was produced.
+
+### 1.5 Goals
+
+- Produce correct, reviewable MQ names for G, P, Q, QL, and EX point families.
+- Preserve the original file layout everywhere except intended fields.
+- Run entirely locally, offline, in one browser tab.
+- Stay usable on a 320 px wide phone screen.
+- Keep behavior deterministic: the same file and settings always give the same
+  output.
+
+### 1.6 Non-goals
+
+- No backend, accounts, cloud storage, analytics, or remote API.
+- No editing of coordinates; heights change only for the Quadro correction.
+- No guessing when evidence is missing; the tool rejects instead (for example an
+  EX group with no anchor).
+- No support for formats other than Leica IPKT `|YXZ|` lines.
+- Not a replacement for reviewing real output before production use.
+
+### 1.7 Success criteria
+
+- A technician can load a file, review the proposed MQ line, and export without
+  hand-editing a single Point ID.
+- The renamed file differs from the source only in Point ID fields and
+  Quadro prism heights.
+- Every inferred decision can be traced in the screen preview or TXT report.
+- Invalid or ambiguous setups never produce an export.
+
+## 2. Glossary
+
+| Term | Meaning |
+| --- | --- |
+| IPKT | Leica fixed-width point text file; only lines containing `|YXZ|` are used. |
+| Point ID | The fixed-width field immediately before `|YXZ|`. |
+| Source group | Everything before the final numeric segment of a Point ID. |
+| Source index | The final numeric segment (1 to 998) of a Point ID. |
+| MQ | Measurement cross-section: a numbered position along the track. |
+| Section | The set of source records belonging to one MQ: 2 for G/P, 4 for Q/QL. |
+| G / P | Rail path / prism path, two records per MQ. |
+| Q / QL | Quadro / quadro line, four records per MQ. |
+| EX | Extra points whose group name ends in `.EX`; placed by coordinates. |
+| Bridge | A stretch where long spans between measured sections are expected. |
+| Normalized IPKT | Intermediate output with IDs such as `G01.001`. |
+| Final IPKT | Output with IDs such as `3560.MQ08.3`. |
+
+## 3. Distribution and source architecture
 
 The canonical maintainable sources are:
 
@@ -27,11 +141,12 @@ distribution and must remain behaviorally identical to the split sources.
 All processing happens in one browser tab. There is no backend, dependency
 bundle, remote API, analytics, cookie, or browser-storage requirement.
 
-## 3. Input model
+## 4. Input model
 
-### 3.1 Supported file
+### 4.1 Supported file
 
-The active application accepts one `.ipkt` file up to 10 MB.
+The active application accepts one `.ipkt` file up to 10 MB. Lines may end in LF
+or CRLF.
 
 Only records containing the ASCII marker `|YXZ|` participate in analysis. The
 parser works on `Uint8Array` data so it can preserve every byte outside fields
@@ -49,7 +164,7 @@ For each valid line, the parser records:
 Malformed PointIDs can still participate in duplicate-coordinate analysis when
 their Y and X values are valid, but they are excluded from group renaming.
 
-### 3.2 Source-group discovery
+### 4.2 Source-group discovery
 
 A renameable PointID must end in a dot plus a numeric index from 1 to 998:
 
@@ -72,7 +187,7 @@ input prefix.
 
 A group whose name explicitly ends in `.EX` uses automatic EX planning.
 
-## 4. Workflow state
+## 5. Workflow state
 
 The browser keeps five main state values:
 
@@ -83,12 +198,12 @@ The browser keeps five main state values:
 5. Latest duplicate-coordinate analysis.
 
 Changing the selected file or pressing Clear invalidates all derived state.
-Editing any group configuration field or pressing Apply Default Prefix invalidates
-the latest renamed output and hides the export card until Build Renamed IPKT is
-run again.
+Editing any group configuration field or pressing Apply Default Prefix
+invalidates the latest renamed output and hides the export card until Build
+Renamed IPKT is run again, so a download always matches the visible settings.
 Downloads are enabled only after the corresponding analysis or build exists.
 
-## 5. Duplicate-coordinate analysis
+## 6. Duplicate-coordinate analysis
 
 The duplicate tolerance applies independently to Y and X:
 
@@ -116,7 +231,7 @@ The on-screen result and duplicate TXT report include:
 
 Duplicate analysis never modifies source bytes.
 
-## 6. Measurement configuration
+## 7. Measurement configuration
 
 Each non-EX source group can be mapped to:
 
@@ -145,7 +260,7 @@ hidden configuration. Its measured section must exist.
 
 Two enabled groups cannot share the same normalized target path.
 
-## 7. Source-index MQ numbering
+## 8. Source-index MQ numbering
 
 MQ numbering is based on the original source section, not the count of rows
 encountered:
@@ -176,7 +291,7 @@ For Q/QL:
 045..048 -> MQ12
 ```
 
-## 8. Coordinate-aware MQ planning
+## 9. Coordinate-aware MQ planning
 
 Records are grouped into their source-index sections. The section coordinate is
 the arithmetic mean of all records in that section that have finite Y/X.
@@ -192,10 +307,15 @@ mqAdvance = max(sourceAdvance, coordinateAdvance)
 The larger advance wins. Coordinate evidence can reveal additional missing MQ
 positions, but it can never compress a source-index gap.
 
+Example with a normal step of 3 m: two neighboring sections whose centers are
+9.1 m apart give `coordinateAdvance = round(3.03) = 3`. If the source indexes
+are consecutive (`sourceAdvance = 1`), the later section is numbered three MQs
+after the earlier one and two MQs are reported as skipped.
+
 The plan is calculated in both directions around the configured start section.
 Any result below MQ01 is rejected.
 
-## 9. Bridge detection
+## 10. Bridge detection
 
 Bridge detection is optional for ordinary G/P/Q/QL groups.
 
@@ -212,9 +332,13 @@ suppressed. Source-index advances remain intact. Multiple separately bounded
 bridges can be recognized in one group and are listed individually in the
 schematic and TXT report.
 
-## 10. Explicit EX mapping
+Example with Bridge min 9 m and Bridge approach max 2.5 m: spans of
+2.4 m, 14.0 m, and 2.3 m form a bridge. The 14.0 m span would otherwise add
+`round(14 / 3) = 5` MQs, but as a bridge it advances only by the source index.
 
-### 10.1 Anchor selection
+## 11. Explicit EX mapping
+
+### 11.1 Anchor selection
 
 For a source group ending in `.EX`, the first EX record with valid coordinates
 is compared with every planned section center from enabled non-EX `P` and `G`
@@ -226,7 +350,7 @@ candidate from the same source family is preferred.
 Export is rejected when no configured prism or rail anchor is available. The
 tool never silently starts an unanchored EX group at MQ01.
 
-### 10.2 Position and bridge rules
+### 11.2 Position and bridge rules
 
 EX records are sorted by original source index. Missing source indexes are kept
 as empty positions so later records preserve their real position.
@@ -242,12 +366,13 @@ The final EX format is:
 <editable prefix>.MQ<index>-<position>
 ```
 
-The schematic distinguishes measured positions, missing positions, bridge-side
-positions, and reserved bridge MQs.
+The MQ index in EX names is not zero-padded. The schematic distinguishes
+measured positions, missing positions, bridge-side positions, and reserved
+bridge MQs.
 
-## 11. Output construction
+## 12. Output construction
 
-### 11.1 Normalized IPKT
+### 12.1 Normalized IPKT
 
 Ordinary configured groups become:
 
@@ -261,7 +386,7 @@ QL04.001
 Explicit EX groups use their planned final EX names because they have no
 ordinary normalized path mapping.
 
-### 11.2 Final renamed IPKT
+### 12.2 Final renamed IPKT
 
 Ordinary groups become:
 
@@ -271,7 +396,7 @@ Ordinary groups become:
 
 EX groups use the hyphenated position format described above.
 
-### 11.3 Fixed-width preservation
+### 12.3 Fixed-width preservation
 
 The output begins as a clone of the original byte array. For each PointID:
 
@@ -281,7 +406,7 @@ The output begins as a clone of the original byte array. For each PointID:
 
 No other source bytes are rewritten.
 
-### 11.4 Quadro height correction
+### 12.4 Quadro height correction
 
 Only prism positions receive `-0.04 m`:
 
@@ -291,7 +416,37 @@ Only prism positions receive `-0.04 m`:
 The adjusted value preserves the fixed-width height field and at least the
 original decimal precision. Export fails if it cannot fit.
 
-## 12. Exports
+## 13. Worked example
+
+Source lines for one group, configured as `P` path 1, prefix `3560`, start MQ 1:
+
+```text
+101.1  ->  P01.001  ->  3560.MQ01.1
+101.2  ->  P01.002  ->  3560.MQ01.2
+101.3  ->  P01.003  ->  3560.MQ02.1
+101.4  ->  P01.004  ->  3560.MQ02.2
+```
+
+The same group configured as `Q` follows the quadro suffix order. The height
+correction follows the source position within the section (positions 3 and 4),
+not the output suffix:
+
+```text
+101.1  ->  3560.MQ01.3
+101.2  ->  3560.MQ01.4
+101.3  ->  3560.MQ01.1   (height -0.04 m, for example 34.63268 -> 34.59268)
+101.4  ->  3560.MQ01.2   (height -0.04 m)
+```
+
+An `.EX` group with prefix `3560` anchored at MQ12 maps as:
+
+```text
+101.EX.01 -> 3560.MQ12-1
+101.EX.04 -> 3560.MQ12-4
+101.EX.05 -> 3560.MQ13-1
+```
+
+## 14. Exports
 
 The application can produce:
 
@@ -310,9 +465,10 @@ The rename report records:
 - EX anchor and bridge reservation evidence.
 - Line-by-line source, normalized, and final PointID mapping.
 
-All downloads use temporary browser object URLs and remain local.
+All downloads use temporary browser object URLs and remain local. The URL is
+revoked after a delay so slow mobile downloads can finish.
 
-## 13. Interface requirements
+## 15. Interface requirements
 
 The interface follows the GeoMonitoring standard:
 
@@ -325,7 +481,7 @@ The interface follows the GeoMonitoring standard:
 - No page-level horizontal overflow at 320 px.
 - Reduced-motion preference support.
 
-## 14. Security and failure behavior
+## 16. Security and failure behavior
 
 - Reject missing files, non-IPKT extensions, and inputs over 10 MB.
 - Accept duplicate tolerance only from 0 to 1 m.
@@ -338,7 +494,19 @@ The interface follows the GeoMonitoring standard:
 - Keep Content Security Policy network connections disabled.
 - Show normal validation errors in the page rather than blocking dialogs.
 
-## 15. Maintenance rules
+## 17. Assumptions and limitations
+
+- Only lines containing `|YXZ|` are read; all other lines pass through unchanged.
+- Source indexes must be from 1 to 998; other Point IDs are skipped and counted.
+- Section centers use Y/X only; height does not influence planning.
+- EX groups anchor only to enabled `P` and `G` groups.
+- Names must fit the original Point ID field; the tool never widens a column.
+- The tool cannot know which MQ a crew intended; it infers from indexes and
+  coordinates and shows the result for review.
+- Automated tests do not replace review of real Leica files before production
+  use.
+
+## 18. Maintenance rules
 
 - Edit only the split sources.
 - Run `python build.py` after source changes.

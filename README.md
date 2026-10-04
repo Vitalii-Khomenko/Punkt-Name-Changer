@@ -1,47 +1,96 @@
 # IPKT Group Path Renamer
 
-A local, browser-based Leica IPKT tool that discovers arbitrary point groups,
-maps them to measurement paths, checks duplicate coordinates, and exports
-normalized or final MQ point names.
+A local, browser-based tool that turns field-assigned Leica IPKT point names into
+structured track measurement names such as `3560.MQ08.3`, without touching any
+other byte of the file.
 
-Files remain in browser memory and are never uploaded.
+Files stay in browser memory and are never uploaded.
+
+## Why it exists
+
+Survey crews name points in the field by measurement session (`101.7`,
+`G101.19`, `2505.1.EX.14`). Downstream processing needs names that say where on
+the track a point belongs and which physical point it is: the measurement
+cross-section (MQ) and the position inside it.
+
+Renaming by hand is slow and error-prone, because the right MQ number is not the
+row count. Sections get skipped, bridges have no points, extra (`.EX`) points
+have no regular index, quadro prisms need a height correction, and every new ID
+must still fit the original fixed-width column. One mistake can shift the
+numbering of a whole path and is often found only after leaving the site.
+
+This tool does the conversion deterministically and shows its reasoning before
+anything is exported. The full background, goals, and non-goals are in
+[`Mission.md`](Mission.md).
+
+## What it does
+
+- Discovers arbitrary point groups from the Point IDs in the file.
+- Maps each group to a path type: `G` (rail), `P` (prism), `Q` (quadro), or `QL`.
+- Numbers MQs from original source indexes, plus coordinate-detected gaps.
+- Recognizes bridges so long spans are not mistaken for missing sections.
+- Anchors `.EX` groups to the nearest prism or rail MQ by coordinates.
+- Applies the -0.04 m height correction to quadro prism positions only.
+- Reports duplicate coordinates within a chosen tolerance.
+- Preserves the original fixed-width layout and field alignment.
+
+## Quick start
+
+1. Open `IPKT-Group-Path-Renamer.html` in any modern browser (works offline).
+2. Select one `.ipkt` file (up to 10 MB), set the duplicate tolerance, and
+   choose Discover Point Groups.
+3. Enable the groups to process and set each one's type, path number, prefix,
+   and start MQ.
+4. Review the MQ line, inferred gaps, bridges, and duplicate results.
+5. Choose Build Renamed IPKT, then download the normalized IPKT, renamed IPKT,
+   TXT report, and optional duplicate report.
+
+Changing any setting after a build hides the downloads until you build again.
+
+## Example
+
+A group configured as `P`, path 1, prefix `3560`, start MQ 1:
+
+```text
+101.1  ->  P01.001  ->  3560.MQ01.1
+101.2  ->  P01.002  ->  3560.MQ01.2
+101.3  ->  P01.003  ->  3560.MQ02.1
+101.4  ->  P01.004  ->  3560.MQ02.2
+```
+
+The first name is the field ID, the second is the normalized intermediate, and
+the third is the final MQ name. More examples, including gaps, bridges, quadro,
+and EX points, are in `Mission.md`.
 
 ## Documentation
 
-- `Mission.md` — complete product purpose, data model, workflow, naming rules,
-  coordinate-aware MQ planning, bridge logic, EX anchoring, byte-preservation
-  rules, exports, and architecture.
-- `Function.txt` — function-by-function reference for `app.js` and `build.py`.
-- `VALIDATION.md` — automated coverage and validation limitations.
-- `SECURITY.md` — local-processing and input/output safety model.
+- [`Mission.md`](Mission.md) — why the project exists, glossary, data model,
+  workflow, naming rules, MQ planning, bridges, EX anchoring, byte
+  preservation, exports, limitations, and architecture.
+- [`Function.txt`](Function.txt) — function-by-function reference for `app.js`
+  and `build.py`.
+- [`VALIDATION.md`](VALIDATION.md) — automated coverage and a manual field
+  checklist.
+- [`SECURITY.md`](SECURITY.md) — local-processing and input/output safety model.
 
-## Workflow
-
-1. Select one Leica `.ipkt` file.
-2. Set the duplicate-coordinate tolerance and discover source point groups.
-3. Enable the groups to process and configure each as `G`, `P`, `Q`, or `QL`.
-4. Review the proposed MQ schematic, coordinate-inferred gaps, and bridges.
-5. Build the output and download the normalized IPKT, final renamed IPKT,
-   rename report, and optional duplicate-coordinate report.
-
-Groups explicitly ending in `.EX` use automatic coordinate anchoring to the
-nearest enabled prism or rail MQ. See `Mission.md` for the full algorithm.
-
-## Files
+## Repository layout
 
 - `index.html` — canonical split HTML.
 - `style.css` — GeoMonitoring design-system presentation.
 - `app.js` — parsing, configuration, renaming, duplicate checking, and export.
 - `build.py` — deterministic single-file builder.
 - `IPKT-Group-Path-Renamer.html` — generated self-contained field file.
+- `tests/run_validation.py` — regression and project-invariant checks.
 
-Open `index.html` during development. Copy
-`IPKT-Group-Path-Renamer.html` to a phone or field computer when a single
-offline-capable file is preferable.
+Open `index.html` during development. Copy `IPKT-Group-Path-Renamer.html` to a
+phone or field computer when a single offline file is preferable.
 
-## Build
+## Development
 
-After changing any split source, rebuild the field file:
+Requirements: Python 3 and Node.js (Node is used for the JavaScript syntax
+check). There are no runtime dependencies and no backend.
+
+Edit only `index.html`, `style.css`, and `app.js`, then rebuild the field file:
 
 ```bash
 python build.py
@@ -50,17 +99,15 @@ python build.py
 The builder inlines `style.css` and `app.js`, adjusts the Content Security
 Policy for inline assets, and replaces `IPKT-Group-Path-Renamer.html`.
 
-## Validation
-
-Run:
+Run the checks after every change:
 
 ```bash
 python tests/run_validation.py
 ```
 
-Validation checks JavaScript syntax, required renaming behavior, local-only
+Validation covers JavaScript syntax, required renaming behavior, local-only
 security controls, GeoMonitoring interface invariants, and exact split-to-field
-build parity.
+build parity. Always review output from real Leica files before production use.
 
 ## License
 
