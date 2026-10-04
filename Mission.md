@@ -132,8 +132,9 @@ The canonical maintainable sources are:
 
 - `index.html` for semantic workflow markup.
 - `style.css` for the tool-specific components (forms, table, MQ schematic).
-- `shared/` for the vendored Airwitech front end: `site.css`, `site.js`, fonts,
-  and favicon shared with every Airwitech site (see `shared/README.md`).
+- `shared/` for the vendored GeoField front end: `site.css`, `app.css`, `site.js`,
+  fonts, and favicon (copies from the Field Checker repository; see
+  `shared/README.md`).
 - `app.js` for all runtime logic.
 
 `python build.py` deterministically inlines both stylesheets, both scripts, the
@@ -474,14 +475,16 @@ revoked after a delay so slow mobile downloads can finish.
 
 ## 15. Interface requirements
 
-The interface follows the Airwitech design system and is part of the GeoField
-site:
+The interface follows the GeoField design (the Airwitech design as applied by
+the Field Checker pages) and is part of the GeoField site:
 
-- The shared Airwitech header (`airwitech | geofield` wordmark, site navigation
-  with GeoField marked current, theme toggle) and footer, identical to every
-  other Airwitech page, with the Airwitech meteor field and light/dark themes.
-- A compact hero with a visible local-processing statement.
-- Numbered source, processing, quality-check, and result stages.
+- The shared header (`airwitech | geofield` wordmark, site navigation with
+  GeoField marked current, theme toggle) and footer, identical to every other
+  Airwitech page, with the meteor field and light/dark themes.
+- A compact hero with the GeoField glyphs, a row of numbered step cards, and a
+  visible local-processing statement.
+- Numbered panels for the source, processing, quality-check, and result stages,
+  each with the coloured line of the GeoField panel.
 - One dominant action in each stage.
 - 44 px minimum standard controls and visible focus rings.
 - Semantic labels, headings, and polite live status.

@@ -1,9 +1,9 @@
 """Build the self-contained IPKT group/path renamer from the split sources.
 
-The canonical sources are index.html, style.css, and app.js, plus the shared
-Airwitech front end in shared/ (site.css, site.js, fonts, favicon). The build
-inlines every asset, including fonts and the favicon as data URIs, and replaces
-IPKT-Group-Path-Renamer.html deterministically.
+The canonical sources are index.html, style.css, and app.js, plus the vendored
+GeoField front end in shared/ (site.css, app.css, site.js, fonts, favicon). The
+build inlines every asset, including fonts and the favicon as data URIs, and
+replaces IPKT-Group-Path-Renamer.html deterministically.
 """
 
 from __future__ import annotations
@@ -16,11 +16,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SHARED = ROOT / "shared"
 SOURCE_HTML = ROOT / "index.html"
-SOURCE_CSS = ROOT / "style.css"
-SOURCE_JS = ROOT / "app.js"
-SHARED_CSS = SHARED / "site.css"
-SHARED_JS = SHARED / "site.js"
-FAVICON = SHARED / "assets" / "favicon.svg"
 OUTPUT_HTML = ROOT / "IPKT-Group-Path-Renamer.html"
 
 INLINE_CSP = (
@@ -30,12 +25,17 @@ INLINE_CSP = (
     "base-uri 'none'; form-action 'none'"
 )
 
-SHARED_CSS_LINK = '    <link rel="stylesheet" href="shared/site.css">'
-TOOL_CSS_LINK = '    <link rel="stylesheet" href="style.css">'
-FAVICON_LINK = '<link rel="icon" href="shared/assets/favicon.svg" type="image/svg+xml">'
-SHARED_JS_TAG = '<script src="shared/site.js"></script>'
-TOOL_JS_TAG = '<script src="app.js"></script>'
-FONT_URL_PATTERN = re.compile(r'url\("assets/fonts/([^"?]+)(?:\?[^"]*)?"\)')
+FAVICON_LINK = '<link rel="icon" href="shared/favicon.svg" type="image/svg+xml">'
+STYLE_LINKS = [
+    ('    <link rel="stylesheet" href="shared/site.css">', SHARED / "site.css"),
+    ('    <link rel="stylesheet" href="shared/app.css">', SHARED / "app.css"),
+    ('    <link rel="stylesheet" href="style.css">', ROOT / "style.css"),
+]
+SCRIPT_TAGS = [
+    ('<script src="shared/site.js"></script>', SHARED / "site.js"),
+    ('<script src="app.js"></script>', ROOT / "app.js"),
+]
+FONT_URL_PATTERN = re.compile(r'url\("fonts/([^"?]+)(?:\?[^"]*)?"\)')
 
 
 def replace_csp(html: str, value: str) -> str:
@@ -53,7 +53,7 @@ def to_data_uri(data: bytes, media_type: str) -> str:
 
 def inline_fonts(css: str) -> str:
     def embed(match: re.Match[str]) -> str:
-        font = (SHARED / "assets" / "fonts" / match.group(1)).read_bytes()
+        font = (SHARED / "fonts" / match.group(1)).read_bytes()
         return f'url("{to_data_uri(font, "font/woff2")}")'
 
     return FONT_URL_PATTERN.sub(embed, css)
@@ -66,19 +66,20 @@ def replace_once(html: str, marker: str, replacement: str) -> str:
 
 
 def build() -> None:
-    html = SOURCE_HTML.read_text(encoding="utf-8")
-    shared_css = inline_fonts(SHARED_CSS.read_text(encoding="utf-8").rstrip())
-    tool_css = SOURCE_CSS.read_text(encoding="utf-8").rstrip()
-    shared_js = SHARED_JS.read_text(encoding="utf-8").rstrip()
-    tool_js = SOURCE_JS.read_text(encoding="utf-8").rstrip()
-    favicon = to_data_uri(FAVICON.read_bytes(), "image/svg+xml")
+    html = replace_csp(SOURCE_HTML.read_text(encoding="utf-8"), INLINE_CSP)
 
-    html = replace_csp(html, INLINE_CSP)
+    favicon = to_data_uri((SHARED / "favicon.svg").read_bytes(), "image/svg+xml")
     html = replace_once(html, FAVICON_LINK, f'<link rel="icon" href="{favicon}" type="image/svg+xml">')
-    html = replace_once(html, SHARED_CSS_LINK, f"    <style>\n{shared_css}\n    </style>")
-    html = replace_once(html, TOOL_CSS_LINK, f"    <style>\n{tool_css}\n    </style>")
-    html = replace_once(html, SHARED_JS_TAG, f"<script>\n{shared_js}\n</script>")
-    html = replace_once(html, TOOL_JS_TAG, f"<script>\n{tool_js}\n</script>")
+
+    for link, path in STYLE_LINKS:
+        css = path.read_text(encoding="utf-8").rstrip()
+        if path.name == "site.css":
+            css = inline_fonts(css)
+        html = replace_once(html, link, f"    <style>\n{css}\n    </style>")
+
+    for tag, path in SCRIPT_TAGS:
+        script = path.read_text(encoding="utf-8").rstrip()
+        html = replace_once(html, tag, f"<script>\n{script}\n</script>")
 
     OUTPUT_HTML.write_text(html, encoding="utf-8")
     print(f"Built {OUTPUT_HTML.relative_to(ROOT)} from split sources")

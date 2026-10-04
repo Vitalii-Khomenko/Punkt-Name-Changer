@@ -4,9 +4,10 @@ Source of truth
 
 - index.html: workflow markup and accessible controls.
 - style.css: tool-specific components (forms, table, MQ schematic, messages) built
-  on the shared Airwitech tokens.
-- shared/site.css, shared/site.js, shared/assets/: vendored Airwitech front end
-  (themes, header, footer, hero, meteor field, fonts, favicon). Not edited here.
+  on the shared GeoField tokens.
+- shared/site.css, shared/app.css, shared/site.js, shared/fonts/, shared/favicon.svg:
+  vendored GeoField front end (themes, header, footer, hero, panels, tables,
+  meteor field, glyphs, fonts). Not edited here.
 - app.js: all browser-side parsing, planning, renaming, reporting, and export.
 - build.py: deterministic split-to-single-file builder.
 - IPKT-Group-Path-Renamer.html: generated self-contained field file.
@@ -138,6 +139,7 @@ Workflow and downloads
   export.
 - downloadBlob(blob, fileName): downloads a browser-generated local object URL and
   revokes it after a delay so slow mobile downloads are not cut off.
+- describeSelectedFile(file): shows the selected file name and size in the drop zone.
 - clearAll(): clears selected input, derived state, results, and UI summaries.
 
 Event handlers

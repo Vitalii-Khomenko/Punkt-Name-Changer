@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
     <meta name="theme-color" content="#06070c">
-    <meta name="description" content="Airwitech GeoField IPKT Group Path Renamer: discover Leica point groups, map them to measurement paths, and export final MQ point names locally in the browser.">
-    <title>Airwitech GeoField — IPKT Group Path Renamer</title>
-    <link rel="icon" href="shared/assets/favicon.svg" type="image/svg+xml">
+    <meta name="description" content="GeoField IPKT Group Path Renamer: discover Leica point groups, map them to measurement paths, and export final MQ point names locally in the browser.">
+    <title>IPKT renamer · GeoField · airwitech</title>
+    <link rel="icon" href="shared/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="shared/site.css">
+    <link rel="stylesheet" href="shared/app.css">
     <link rel="stylesheet" href="style.css">
 </head>
-<body data-tone="2">
+<body class="tone-gnss" data-tone="2">
 <canvas class="meteors" id="meteors" aria-hidden="true"></canvas>
 <div class="rail" aria-hidden="true"><span class="rail-pixel"></span></div>
 
@@ -30,150 +31,137 @@
     </nav>
 </header>
 
-<main>
-    <section class="hero hero-tool" aria-labelledby="hero-title">
-        <canvas class="hero-glyph" data-glyphs="window,eye,bars" data-tones="0,1,2" aria-hidden="true"></canvas>
-        <div class="hero-copy">
-            <p class="eyebrow">GeoField · IPKT Group Path Renamer</p>
-            <h1 id="hero-title">
-                <span class="line-know">Name every point.</span>
-                <span class="line-amplify">Keep every byte.</span>
-            </h1>
+<main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+        <canvas class="hero-glyph" data-glyphs="tripod,network,bars" data-tones="1,0,2" aria-hidden="true"></canvas>
+        <div class="hero-inner">
+            <p class="eyebrow">IPKT group path renamer · Leica point files</p>
+            <h1 id="hero-title"><span>Name every point.</span><span class="line-amplify">Keep every byte.</span></h1>
             <p class="lede">
                 Discover Leica point groups, map each one to a measurement path, and export final MQ names.
                 Only Point IDs, and Quadro prism heights where the correction applies, are rewritten.
+                Local processing: files remain in this browser tab and are never uploaded.
             </p>
-            <p class="trust-line">Local processing — files remain in this browser tab and are never uploaded.</p>
-        </div>
-
-        <div class="hero-foot">
-            <ol class="steps" aria-label="The renaming workflow">
-                <li class="step step-violet"><span>01</span> Load</li>
-                <li class="step step-amber"><span>02</span> Review</li>
-                <li class="step step-cyan"><span>03</span> Export</li>
-            </ol>
-            <a class="cue" href="#source"><span>Start</span><i aria-hidden="true"></i></a>
+            <div class="steps-row">
+                <div class="step-card tone-cyan"><b>01 · LOAD</b><span>Select an IPKT file and discover its point groups.</span></div>
+                <div class="step-card tone-amber"><b>02 · REVIEW</b><span>Check the MQ line, gaps, bridges, EX anchors, and duplicates.</span></div>
+                <div class="step-card tone-violet"><b>03 · EXPORT</b><span>Download the normalized and renamed IPKT with a TXT report.</span></div>
+            </div>
         </div>
     </section>
 
-    <section id="source" class="toolkit stage tone-violet" aria-labelledby="source-title">
-        <div class="toolkit-inner">
-            <p class="chapter-tag"><span>01</span> Source data</p>
-            <h2 id="source-title">Load and analyze an IPKT file</h2>
-            <div class="grid">
-                <div>
-                    <label for="ipktFile">IPKT file</label>
-                    <input id="ipktFile" type="file" accept=".ipkt">
-                    <p class="help">Maximum file size: 10 MB. Only records containing <code>|YXZ|</code> are analyzed.</p>
+    <div class="shell">
+        <div class="stack">
+            <section class="panel tone-violet" aria-labelledby="source-title">
+                <div class="panel-head"><span class="no">01</span><h2 id="source-title">Load and analyze an IPKT file</h2><p>Source data</p></div>
+                <div class="grid-2">
+                    <label class="dropzone" data-dropzone>
+                        <input id="ipktFile" type="file" accept=".ipkt">
+                        <span class="dz-icon" aria-hidden="true">▤</span>
+                        <strong>Drop an IPKT file</strong>
+                        <span class="dz-hint">Maximum 10 MB. Only records containing <code>|YXZ|</code> are analyzed.</span>
+                        <span class="dz-count" id="ipktFileCount">No file selected</span>
+                    </label>
+                    <div class="stack">
+                        <label class="field"><span>Default final base prefix</span>
+                            <input id="defaultBasePrefix" type="text" placeholder="e.g. 3560" autocomplete="off" spellcheck="false">
+                            <small>Applied to every discovered group when you press Apply Default Prefix.</small>
+                        </label>
+                        <label class="field"><span>Duplicate Y/X tolerance <i>meters</i></span>
+                            <input id="coordinateTolerance" type="number" min="0" max="1" step="0.001" value="0.1">
+                            <small>Duplicate records are listed when each Y/X component differs by no more than this value.</small>
+                        </label>
+                    </div>
                 </div>
-                <div>
-                    <label for="defaultBasePrefix">Default final base prefix</label>
-                    <input id="defaultBasePrefix" type="text" placeholder="e.g. 3560" autocomplete="off" spellcheck="false">
-                    <p class="help">Applied to every discovered group when you press Apply Default Prefix.</p>
+                <div class="actions">
+                    <button id="analyzeButton" class="button primary" type="button">Discover Point Groups <span aria-hidden="true">→</span></button>
+                    <button id="applyPrefixButton" class="button" type="button" disabled>Apply Default Prefix</button>
+                    <button id="clearButton" class="button quiet" type="button">Clear</button>
                 </div>
-                <div>
-                    <label for="coordinateTolerance">Duplicate Y/X tolerance in meters</label>
-                    <input id="coordinateTolerance" type="number" min="0" max="1" step="0.001" value="0.1">
-                    <p class="help">Duplicate records are listed when each Y/X component differs by no more than this value.</p>
-                </div>
-            </div>
-            <div class="actions">
-                <button id="analyzeButton" type="button">Discover Point Groups</button>
-                <button id="applyPrefixButton" class="secondary" type="button" disabled>Apply Default Prefix</button>
-                <button id="clearButton" class="quiet" type="button">Clear</button>
-            </div>
-            <p id="status" class="status" role="status" aria-live="polite">Select an IPKT file to begin.</p>
-        </div>
-    </section>
-
-    <section id="summaryCard" class="toolkit stage tone-amber hidden" aria-labelledby="processing-title">
-        <div class="toolkit-inner">
-            <p class="chapter-tag"><span>02</span> Processing</p>
-            <h2 id="processing-title">Configure discovered groups</h2>
-            <dl class="stats summary">
-                <div><dt>File</dt><dd id="summaryFile" class="stat-text">-</dd></div>
-                <div><dt>Numeric point records</dt><dd id="summaryRecords">0</dd></div>
-                <div><dt>Discovered groups</dt><dd id="summaryGroups">0</dd></div>
-                <div><dt>Skipped YXZ records</dt><dd id="summarySkipped">0</dd></div>
-            </dl>
-            <p class="help">
-                MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
-                With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
-                Optional bridge detection recognizes each separate bounded bridge span, including rare files containing two or more bridges.
-                Groups explicitly ending in <code>.EX</code> use automatic coordinate-anchored EX numbering: the first EX point starts at the nearest configured prism or rail MQ, normally four EX points share an MQ, and two points share each MQ immediately before and after a detected bridge.
-                P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
-                Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
-            </p>
-            <div class="type-legend" aria-label="Measurement type legend">
-                <span><strong>G</strong> = Rail path</span>
-                <span><strong>P</strong> = Prism path</span>
-                <span><strong>Q</strong> = Quadro</span>
-                <span><strong>QL</strong> = Quadro line</span>
-            </div>
-            <p class="swipe-hint">Swipe horizontally to review every configuration column on a phone.</p>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Use</th>
-                        <th>Source group</th>
-                        <th>Found</th>
-                        <th>Type</th>
-                        <th>Path</th>
-                        <th>Final base prefix</th>
-                        <th>Start MQ</th>
-                        <th>Coordinate gap check</th>
-                        <th>Normal step (m)</th>
-                        <th>Bridge detection</th>
-                        <th>Bridge min (m)</th>
-                        <th>Bridge approach max (m)</th>
-                        <th>Preview</th>
-                    </tr>
-                    </thead>
-                    <tbody id="groupsBody"></tbody>
-                </table>
-            </div>
-            <section class="schematic" aria-labelledby="schematicHeading">
-                <h3 id="schematicHeading">MQ Line Schematic</h3>
-                <p class="help">A live view of proposed MQ names, measured sections, inferred missing sections, and recognized or reserved bridge spans.</p>
-                <div class="schematic-legend">
-                    <span class="legend-item"><span class="legend-dot"></span>Measured MQ or EX position</span>
-                    <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ or EX position</span>
-                    <span class="legend-item"><span class="legend-dot bridge"></span>Bridge section or reserved MQ</span>
-                </div>
-                <div id="mqSchematic"></div>
+                <p id="status" class="status" role="status" aria-live="polite">Select an IPKT file to begin.</p>
             </section>
-            <div class="actions">
-                <button id="renameButton" type="button">Build Renamed IPKT</button>
-            </div>
-            <ul id="warnings" class="warning-list"></ul>
-        </div>
-    </section>
 
-    <section id="duplicatesCard" class="toolkit stage tone-amber hidden" aria-labelledby="duplicates-title">
-        <div class="toolkit-inner">
-            <p class="chapter-tag"><span>03</span> Quality check</p>
-            <h2 id="duplicates-title">Review duplicate coordinates</h2>
-            <p id="duplicatesSummary" class="status"></p>
-            <div id="duplicateResults"></div>
-            <div class="actions">
-                <button id="downloadDuplicatesButton" class="secondary" type="button" disabled>Download Duplicate TXT Report</button>
-            </div>
-        </div>
-    </section>
+            <section id="summaryCard" class="panel tone-amber hidden" aria-labelledby="processing-title">
+                <div class="panel-head"><span class="no">02</span><h2 id="processing-title">Configure discovered groups</h2><p>Processing</p></div>
+                <div class="metrics summary">
+                    <article class="metric"><span>File</span><strong id="summaryFile" class="word">-</strong></article>
+                    <article class="metric"><span>Numeric point records</span><strong id="summaryRecords">0</strong></article>
+                    <article class="metric"><span>Discovered groups</span><strong id="summaryGroups">0</strong></article>
+                    <article class="metric"><span>Skipped YXZ records</span><strong id="summarySkipped">0</strong></article>
+                </div>
+                <p class="fine help">
+                    MQ numbering preserves original source-index gaps and can also detect missing sections from Y/X distance.
+                    With the default 3.0 m step, a distance near 6.0 m advances two MQ positions.
+                    Optional bridge detection recognizes each separate bounded bridge span, including rare files containing two or more bridges.
+                    Groups explicitly ending in <code>.EX</code> use automatic coordinate-anchored EX numbering: the first EX point starts at the nearest configured prism or rail MQ, normally four EX points share an MQ, and two points share each MQ immediately before and after a detected bridge.
+                    P uses suffixes 1/2, G uses 3/4, Q uses 3/4/1/2, and QL uses 1/3/4/2.
+                    Direct final-MQ output also applies the existing -0.04 m Quadro prism-height correction.
+                </p>
+                <div class="type-legend" aria-label="Measurement type legend">
+                    <span><strong>G</strong> = Rail path</span>
+                    <span><strong>P</strong> = Prism path</span>
+                    <span><strong>Q</strong> = Quadro</span>
+                    <span><strong>QL</strong> = Quadro line</span>
+                </div>
+                <p class="swipe-hint">Swipe horizontally to review every configuration column on a phone.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Use</th>
+                            <th>Source group</th>
+                            <th>Found</th>
+                            <th>Type</th>
+                            <th>Path</th>
+                            <th>Final base prefix</th>
+                            <th>Start MQ</th>
+                            <th>Coordinate gap check</th>
+                            <th>Normal step (m)</th>
+                            <th>Bridge detection</th>
+                            <th>Bridge min (m)</th>
+                            <th>Bridge approach max (m)</th>
+                            <th>Preview</th>
+                        </tr>
+                        </thead>
+                        <tbody id="groupsBody"></tbody>
+                    </table>
+                </div>
+                <section class="schematic" aria-labelledby="schematicHeading">
+                    <h3 id="schematicHeading">MQ Line Schematic</h3>
+                    <p class="fine">A live view of proposed MQ names, measured sections, inferred missing sections, and recognized or reserved bridge spans.</p>
+                    <div class="schematic-legend">
+                        <span class="legend-item"><span class="legend-dot"></span>Measured MQ or EX position</span>
+                        <span class="legend-item"><span class="legend-dot missing"></span>Missing MQ or EX position</span>
+                        <span class="legend-item"><span class="legend-dot bridge"></span>Bridge section or reserved MQ</span>
+                    </div>
+                    <div id="mqSchematic"></div>
+                </section>
+                <div class="actions">
+                    <button id="renameButton" class="button primary" type="button">Build Renamed IPKT <span aria-hidden="true">→</span></button>
+                </div>
+                <ul id="warnings" class="warning-list"></ul>
+            </section>
 
-    <section id="exportCard" class="toolkit stage tone-cyan hidden" aria-labelledby="results-title">
-        <div class="toolkit-inner">
-            <p class="chapter-tag"><span>04</span> Results</p>
-            <h2 id="results-title">Export processed files</h2>
-            <p id="exportSummary" class="status success"></p>
-            <div class="actions">
-                <button id="downloadNormalizedButton" class="secondary" type="button">Download Normalized IPKT</button>
-                <button id="downloadIpktButton" type="button">Download Renamed IPKT</button>
-                <button id="downloadReportButton" class="secondary" type="button">Download TXT Report</button>
-            </div>
+            <section id="duplicatesCard" class="panel tone-amber hidden" aria-labelledby="duplicates-title">
+                <div class="panel-head"><span class="no">03</span><h2 id="duplicates-title">Review duplicate coordinates</h2><p>Quality check</p></div>
+                <p id="duplicatesSummary" class="status"></p>
+                <div id="duplicateResults"></div>
+                <div class="actions">
+                    <button id="downloadDuplicatesButton" class="button" type="button" disabled>Download Duplicate TXT Report</button>
+                </div>
+            </section>
+
+            <section id="exportCard" class="panel tone-cyan hidden" aria-labelledby="results-title">
+                <div class="panel-head"><span class="no">04</span><h2 id="results-title">Export processed files</h2><p>Results</p></div>
+                <p id="exportSummary" class="status success"></p>
+                <div class="actions">
+                    <button id="downloadNormalizedButton" class="button" type="button">Download Normalized IPKT</button>
+                    <button id="downloadIpktButton" class="button primary" type="button">Download Renamed IPKT</button>
+                    <button id="downloadReportButton" class="button" type="button">Download TXT Report</button>
+                </div>
+            </section>
         </div>
-    </section>
+    </div>
 </main>
 
 <footer class="site-footer">
@@ -190,9 +178,7 @@
         <li><a href="https://profile.hackthebox.com/profile/019c5de1-3684-718b-83fe-028319a5a7d0" rel="me noopener noreferrer">HTB profile</a></li>
         <li><a href="https://www.shackspace.de/" rel="noopener noreferrer">shackspace</a></li>
     </ul>
-    <p class="footer-note footer-legal">
-        &copy; 2026 Airwitech. Leica and IPKT belong to their respective owners; Airwitech is not affiliated with them.
-    </p>
+    <p class="footer-note footer-legal">&copy; 2026 Airwitech. IPKT files are processed in this browser tab and never uploaded. Leica and IPKT belong to their respective owners; this tool is independent and not affiliated with them.</p>
 </footer>
 
 <script src="shared/site.js"></script>

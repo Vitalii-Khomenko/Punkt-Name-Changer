@@ -20,6 +20,7 @@
     const groupsBody = document.getElementById('groupsBody');
     const warningsElement = document.getElementById('warnings');
     const mqSchematic = document.getElementById('mqSchematic');
+    const fileCountElement = document.getElementById('ipktFileCount');
 
     let sourceFile = null;
     let sourceBytes = null;
@@ -30,6 +31,17 @@
     function setStatus(message, kind = '') {
         statusElement.textContent = message;
         statusElement.className = `status ${kind}`.trim();
+    }
+
+    function describeSelectedFile(file) {
+        if (!file) {
+            fileCountElement.textContent = 'No file selected';
+            return;
+        }
+        const size = file.size > 1024 * 1024
+            ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+            : `${Math.max(1, Math.ceil(file.size / 1024))} KB`;
+        fileCountElement.textContent = `${file.name} · ${size}`;
     }
 
     function bytesToAscii(bytes) {
@@ -1276,6 +1288,7 @@
 
     function clearAll() {
         fileInput.value = '';
+        describeSelectedFile(null);
         sourceFile = null;
         sourceBytes = null;
         discoveredGroups = [];
@@ -1308,6 +1321,7 @@
     });
     clearButton.addEventListener('click', clearAll);
     fileInput.addEventListener('change', () => {
+        describeSelectedFile(fileInput.files[0]);
         sourceFile = null;
         sourceBytes = null;
         discoveredGroups = [];

@@ -96,7 +96,7 @@
   // Fall direction: down and to the left, normalised.
   const DIR_X = -0.42;
   const DIR_Y = 0.91;
-  const QUIET_SELECTOR = ".hero-copy, .chapter-body, .demo-intro, .demo-panel, .toolkit-inner, .about-inner, .principle h2, .closing-inner, .notfound";
+  const QUIET_SELECTOR = ".hero-copy, .panel, .tabs, .report-head, .metrics, .downloads, .notes, .job-card, .lede, .chapter-body, .principle h2, .closing-inner, .notfound, table";
 
   const startMeteors = () => {
     if (!canvas) {
@@ -423,6 +423,9 @@
     window: ["###########", "#.#.#.....#", "###########", "#.........#", "#.o.......#", "#..o......#", "#.o..ooo..#", "###########"],
     spike: ["......o......", ".....o.o.....", ".....#.#.....", "....#...#....", "....#...#....", "...#.....#...", "###.......###"],
     bot: ["....#....", ".#######.", "#########", "##o###o##", "#########", ".#######.", ".#.....#.", ".##...##."],
+    antenna: ["..#####..", ".#.....#.", "#..###..#", "...#o#...", "....#....", "....#....", "....#....", "..#####.."],
+    tripod: ["...###...", "..#####..", "...#o#...", "....#....", "...#.#...", "..#...#..", ".#.....#.", "#.......#"],
+    network: ["#.......#", ".#.....#.", "..#...#..", "...#o#...", "....#....", "....#....", "..#####.."],
   };
 
   const startGlyph = (glyphCanvas) => {
