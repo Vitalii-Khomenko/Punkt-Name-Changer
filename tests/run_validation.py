@@ -73,6 +73,14 @@ class ProjectTests(unittest.TestCase):
         ]:
             self.assertIn(marker, source)
 
+    def test_stale_export_and_download_safeguards(self) -> None:
+        source = SOURCE_JS.read_text(encoding="utf-8")
+        self.assertIn("function invalidateExport", source)
+        self.assertGreaterEqual(source.count("invalidateExport();"), 3)
+        self.assertIn("setTimeout(() => URL.revokeObjectURL(url)", source)
+        self.assertNotRegex(source, r"link\.remove\(\);\s*URL\.revokeObjectURL")
+        self.assertIn("is assigned to both", source)
+
         html = SOURCE_HTML.read_text(encoding="utf-8")
         for marker in [
             "Download Normalized IPKT",

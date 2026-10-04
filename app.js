@@ -3,6 +3,7 @@
     const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
     const DEFAULT_DUPLICATE_TOLERANCE = 0.1;
     const COORDINATE_COMPARISON_EPSILON = 1e-9;
+    const DOWNLOAD_URL_REVOKE_DELAY_MS = 30000;
     const SAFE_NAME_COMPONENT_PATTERN = /^[A-Za-z0-9._-]+$/;
     const ASCII = new TextEncoder();
     const fileInput = document.getElementById('ipktFile');
@@ -702,6 +703,11 @@
         preview.textContent = `${buildNormalizedName(config, firstIndex)} -> ${buildFinalName(config, firstIndex)}`;
     }
 
+    function invalidateExport() {
+        latestOutput = null;
+        exportCard.classList.add('hidden');
+    }
+
     function renderMqSchematic() {
         mqSchematic.replaceChildren();
         let renderedGroups = 0;
@@ -935,10 +941,12 @@
             }
 
             row.addEventListener('input', () => {
+                invalidateExport();
                 updateRowPreview(row);
                 renderMqSchematic();
             });
             row.addEventListener('change', () => {
+                invalidateExport();
                 updateRowPreview(row);
                 renderMqSchematic();
             });
@@ -1146,6 +1154,7 @@
 
         analyzeButton.disabled = true;
         downloadDuplicatesButton.disabled = true;
+        warningsElement.replaceChildren();
         setStatus('Reading the file, discovering groups, and checking duplicate coordinates...');
         try {
             sourceFile = file;
@@ -1220,6 +1229,14 @@
                     normalizedReplacements.push({ record, newName: buildNormalizedName(config, record.sourceIndex) });
                 });
             });
+            const namesInUse = new Map();
+            replacements.forEach(({ record, newName }) => {
+                const owner = namesInUse.get(newName);
+                if (owner !== undefined && owner !== record.sourceGroup) {
+                    throw new Error(`${newName} is assigned to both ${owner} and ${record.sourceGroup}. Change a prefix, path, or start MQ.`);
+                }
+                namesInUse.set(newName, record.sourceGroup);
+            });
             const renamedBytes = replaceFields(sourceBytes, replacements);
             latestOutput = {
                 bytes: applyQuadroHeightOffsets(renamedBytes, replacements),
@@ -1254,7 +1271,7 @@
         document.body.appendChild(link);
         link.click();
         link.remove();
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_REVOKE_DELAY_MS);
     }
 
     function clearAll() {
@@ -1280,9 +1297,12 @@
     analyzeButton.addEventListener('click', discoverGroups);
     applyPrefixButton.addEventListener('click', () => {
         const value = document.getElementById('defaultBasePrefix').value.trim();
+        invalidateExport();
         groupsBody.querySelectorAll('[data-role="basePrefix"]').forEach((input) => {
-            input.value = value;
-            updateRowPreview(input.closest('tr'));
+            const row = input.closest('tr');
+            const group = discoveredGroups[Number.parseInt(row.dataset.groupIndex, 10)];
+            input.value = group?.isExplicitEx ? (value || group.exBaseGroup) : value;
+            updateRowPreview(row);
         });
         renderMqSchematic();
     });

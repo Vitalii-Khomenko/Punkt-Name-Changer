@@ -83,6 +83,9 @@ The browser keeps five main state values:
 5. Latest duplicate-coordinate analysis.
 
 Changing the selected file or pressing Clear invalidates all derived state.
+Editing any group configuration field or pressing Apply Default Prefix invalidates
+the latest renamed output and hides the export card until Build Renamed IPKT is
+run again.
 Downloads are enabled only after the corresponding analysis or build exists.
 
 ## 5. Duplicate-coordinate analysis
@@ -330,6 +333,7 @@ The interface follows the GeoMonitoring standard:
 - Reject incomplete or conflicting configurations.
 - Reject invalid distance relationships.
 - Reject output below MQ01.
+- Reject final names that two different source groups would both receive.
 - Reject names or heights that exceed original field widths.
 - Keep Content Security Policy network connections disabled.
 - Show normal validation errors in the page rather than blocking dialogs.

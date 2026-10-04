@@ -65,7 +65,7 @@ Measurement types and naming
 - buildNormalizedName(config, sourceIndex): produces `G01.001`, `P01.001`,
   `Q01.001`, or `QL01.001` style normalized IDs.
 - buildExplicitExName(group, config, record): produces automatic EX output in
-  `prefix.MQnn-position` format.
+  `prefix.MQindex-position` format; the MQ index is not zero-padded.
 
 Coordinate-aware MQ planning
 
@@ -129,16 +129,22 @@ Workflow and downloads
   configuration and quality-check results; and updates shared state.
 - buildRenamedFile(): validates configurations, creates normalized and final
   replacement plans, applies fixed-width replacements and height offsets, builds
-  the report, and enables export.
-- downloadBlob(blob, fileName): downloads a browser-generated local object URL.
+  the report, rejects final names shared by different source groups, and enables
+  export.
+- downloadBlob(blob, fileName): downloads a browser-generated local object URL and
+  revokes it after a delay so slow mobile downloads are not cut off.
 - clearAll(): clears selected input, derived state, results, and UI summaries.
 
 Event handlers
 
 - Discover Point Groups calls discoverGroups().
-- Apply Default Prefix writes one prefix to all displayed groups.
+- Apply Default Prefix writes one prefix to all displayed groups; automatic EX
+  rows fall back to their base group when the field is empty. It also calls
+  invalidateExport().
 - Clear calls clearAll().
 - File selection invalidates all derived results.
+- Editing a configuration row calls invalidateExport(), which discards the latest
+  renamed output and hides the export card.
 - Build Renamed IPKT calls buildRenamedFile().
 - Export buttons download normalized IPKT, renamed IPKT, rename TXT, or duplicate
   TXT output from the latest completed analysis.
