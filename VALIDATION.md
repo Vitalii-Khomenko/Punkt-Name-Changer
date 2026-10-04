@@ -18,8 +18,8 @@ The suite validates:
 - Stale-export protection, delayed download URL revocation, and rejection of
   final names shared by different groups.
 - Local-only Content Security Policy controls.
-- GeoMonitoring color tokens, focus visibility, 44 px touch targets, and
-  mobile overflow safeguards.
+- Shared Airwitech header, footer, theme tokens, focus visibility, 44 px touch
+  targets, and mobile overflow safeguards.
 - Deterministic rebuilding of `IPKT-Group-Path-Renamer.html`.
 - English-only project text.
 - Presence of the detailed mission and function reference.

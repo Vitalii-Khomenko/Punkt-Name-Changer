@@ -3,7 +3,10 @@ IPKT Group Path Renamer — Function Reference
 Source of truth
 
 - index.html: workflow markup and accessible controls.
-- style.css: GeoMonitoring design tokens, components, and responsive behavior.
+- style.css: tool-specific components (forms, table, MQ schematic, messages) built
+  on the shared Airwitech tokens.
+- shared/site.css, shared/site.js, shared/assets/: vendored Airwitech front end
+  (themes, header, footer, hero, meteor field, fonts, favicon). Not edited here.
 - app.js: all browser-side parsing, planning, renaming, reporting, and export.
 - build.py: deterministic split-to-single-file builder.
 - IPKT-Group-Path-Renamer.html: generated self-contained field file.
@@ -154,9 +157,13 @@ Event handlers
 Build functions
 
 - replace_csp(html, value): replaces the single CSP meta tag.
-- extract_sources(): recovery-only operation that extracts inline CSS/JS from an
-  existing field file into the canonical root sources.
-- build(): reads index.html, style.css, and app.js; verifies asset placeholders;
-  inlines both assets; changes CSP to allow those inline blocks; and writes
+- to_data_uri(data, media_type): encodes bytes as a base64 data URI.
+- inline_fonts(css): replaces each shared font URL with an embedded data URI.
+- replace_once(html, marker, replacement): replaces one expected reference and
+  fails when it is missing.
+- build(): reads index.html, style.css, app.js, and the shared front end; verifies
+  every asset reference;
+  inlines both stylesheets, both scripts, the fonts, and the favicon; changes the
+  CSP to allow inline blocks and data fonts; and writes
   IPKT-Group-Path-Renamer.html.
-- main(): parses `--extract` and runs the requested deterministic build.
+- main(): runs the deterministic build.

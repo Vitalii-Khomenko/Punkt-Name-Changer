@@ -131,15 +131,19 @@ usually found late, after the crew has left the site.
 The canonical maintainable sources are:
 
 - `index.html` for semantic workflow markup.
-- `style.css` for the GeoMonitoring interface.
+- `style.css` for the tool-specific components (forms, table, MQ schematic).
+- `shared/` for the vendored Airwitech front end: `site.css`, `site.js`, fonts,
+  and favicon shared with every Airwitech site (see `shared/README.md`).
 - `app.js` for all runtime logic.
 
-`python build.py` deterministically inlines the CSS and JavaScript into
+`python build.py` deterministically inlines both stylesheets, both scripts, the
+fonts, and the favicon (as data URIs) into
 `IPKT-Group-Path-Renamer.html`. The generated file is the portable field
 distribution and must remain behaviorally identical to the split sources.
 
 All processing happens in one browser tab. There is no backend, dependency
-bundle, remote API, analytics, cookie, or browser-storage requirement.
+bundle, remote API, analytics, or cookie. The shared front end stores one value,
+the light or dark theme choice, in the browser; it never stores file data.
 
 ## 4. Input model
 
@@ -470,10 +474,14 @@ revoked after a delay so slow mobile downloads can finish.
 
 ## 15. Interface requirements
 
-The interface follows the GeoMonitoring standard:
+The interface follows the Airwitech design system and is part of the GeoField
+site:
 
-- Dark technical product header and visible local-processing indicator.
-- Separate source, processing, quality-check, and result stages.
+- The shared Airwitech header (`airwitech | geofield` wordmark, site navigation
+  with GeoField marked current, theme toggle) and footer, identical to every
+  other Airwitech page, with the Airwitech meteor field and light/dark themes.
+- A compact hero with a visible local-processing statement.
+- Numbered source, processing, quality-check, and result stages.
 - One dominant action in each stage.
 - 44 px minimum standard controls and visible focus rings.
 - Semantic labels, headings, and polite live status.

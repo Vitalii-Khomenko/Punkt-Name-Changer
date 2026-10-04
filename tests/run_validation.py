@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_HTML = ROOT / "index.html"
 SOURCE_CSS = ROOT / "style.css"
 SOURCE_JS = ROOT / "app.js"
+SHARED_CSS = ROOT / "shared" / "site.css"
+SHARED_JS = ROOT / "shared" / "site.js"
 FIELD_HTML = ROOT / "IPKT-Group-Path-Renamer.html"
 BUILD_SCRIPT = ROOT / "build.py"
 README = ROOT / "README.md"
@@ -31,6 +33,8 @@ class ProjectTests(unittest.TestCase):
             SOURCE_HTML,
             SOURCE_CSS,
             SOURCE_JS,
+            SHARED_CSS,
+            SHARED_JS,
             FIELD_HTML,
             BUILD_SCRIPT,
             README,
@@ -44,13 +48,14 @@ class ProjectTests(unittest.TestCase):
             self.assertTrue(path.exists(), f"Missing required file: {path.name}")
 
     def test_javascript_syntax(self) -> None:
-        subprocess.run(
-            ["node", "--check", str(SOURCE_JS)],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        for script in [SOURCE_JS, SHARED_JS]:
+            subprocess.run(
+                ["node", "--check", str(script)],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
     def test_active_ipkt_workflows_are_present(self) -> None:
         source = SOURCE_JS.read_text(encoding="utf-8")
@@ -99,16 +104,24 @@ class ProjectTests(unittest.TestCase):
         )
 
         split_html = SOURCE_HTML.read_text(encoding="utf-8")
-        css = SOURCE_CSS.read_text(encoding="utf-8").strip()
-        javascript = SOURCE_JS.read_text(encoding="utf-8").strip()
         field = FIELD_HTML.read_text(encoding="utf-8")
 
-        self.assertIn('<link rel="stylesheet" href="style.css">', split_html)
-        self.assertIn('<script src="app.js"></script>', split_html)
-        self.assertNotIn('<link rel="stylesheet" href="style.css">', field)
-        self.assertNotIn('<script src="app.js"></script>', field)
-        self.assertIn(css, field)
-        self.assertIn(javascript, field)
+        for reference in [
+            '<link rel="stylesheet" href="shared/site.css">',
+            '<link rel="stylesheet" href="style.css">',
+            '<link rel="icon" href="shared/assets/favicon.svg" type="image/svg+xml">',
+            '<script src="shared/site.js"></script>',
+            '<script src="app.js"></script>',
+        ]:
+            self.assertIn(reference, split_html)
+            self.assertNotIn(reference, field)
+
+        self.assertIn(SOURCE_JS.read_text(encoding="utf-8").strip(), field)
+        self.assertIn(SOURCE_CSS.read_text(encoding="utf-8").strip(), field)
+        self.assertIn(SHARED_JS.read_text(encoding="utf-8").strip(), field)
+        self.assertEqual(field.count("data:font/woff2;base64,"), 3)
+        self.assertNotIn('url("assets/fonts/', field)
+        self.assertIn("data:image/svg+xml;base64,", field)
 
     def test_local_only_security_controls(self) -> None:
         split_html = SOURCE_HTML.read_text(encoding="utf-8")
@@ -121,31 +134,50 @@ class ProjectTests(unittest.TestCase):
         self.assertIn("script-src 'self'; style-src 'self';", split_html)
         self.assertIn("script-src 'self' 'unsafe-inline'", field)
 
-    def test_geomonitoring_responsive_interface(self) -> None:
+    def test_airwitech_design_and_responsive_interface(self) -> None:
         html = SOURCE_HTML.read_text(encoding="utf-8")
+        shared_css = SHARED_CSS.read_text(encoding="utf-8")
         css = SOURCE_CSS.read_text(encoding="utf-8")
         for marker in [
-            'class="product-header"',
-            "GeoMonitoring field tools",
+            '<header class="site-header">',
+            '<span class="logo-tag">geofield</span>',
+            '<a href="https://geofield.airwitech.com/" aria-current="page">GeoField</a>',
+            'id="theme-toggle"',
+            '<footer class="site-footer">',
+            "airwitech geofield",
+            'class="hero hero-tool"',
             "Local processing",
-            'class="card source-card"',
-            'class="card result-card hidden"',
+            'class="toolkit stage tone-amber hidden"',
             'class="quiet"',
             'class="swipe-hint"',
         ]:
             self.assertIn(marker, html)
         for marker in [
-            "--ink-950: #071a22",
-            "--canvas: #eaf0f2",
-            "--primary-700: #075f5a",
+            "--ink: #06070c",
+            "--paper: #f4f0e9",
+            "--cyan: #62e4ff",
+            ':root[data-theme="light"]',
             "min-width: 320px",
             "overflow-x: hidden",
+            "@media (prefers-reduced-motion: reduce)",
+        ]:
+            self.assertIn(marker, shared_css)
+        for marker in [
             "min-height: 44px",
             ":focus-visible",
             "@media (max-width: 760px)",
             "@media (prefers-reduced-motion: reduce)",
+            "--danger",
         ]:
             self.assertIn(marker, css)
+        self.assertNotIn("--ink-950", css)
+
+    def test_shared_front_end_has_no_remote_references(self) -> None:
+        for path in [SHARED_CSS, SHARED_JS]:
+            source = path.read_text(encoding="utf-8")
+            self.assertNotRegex(source, r"https?://", path.name)
+            self.assertNotIn("fetch(", source)
+            self.assertNotIn("XMLHttpRequest", source)
 
     def test_project_text_is_english_only(self) -> None:
         for path in [

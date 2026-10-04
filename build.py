@@ -1,33 +1,41 @@
-"""Build the self-contained IPKT group/path renamer from root split sources.
+"""Build the self-contained IPKT group/path renamer from the split sources.
 
-The canonical sources are index.html, style.css, and app.js. Use --extract only
-to restore them from an existing self-contained field file. Normal builds
-replace IPKT-Group-Path-Renamer.html deterministically.
+The canonical sources are index.html, style.css, and app.js, plus the shared
+Airwitech front end in shared/ (site.css, site.js, fonts, favicon). The build
+inlines every asset, including fonts and the favicon as data URIs, and replaces
+IPKT-Group-Path-Renamer.html deterministically.
 """
 
 from __future__ import annotations
 
-import argparse
+import base64
 import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+SHARED = ROOT / "shared"
 SOURCE_HTML = ROOT / "index.html"
 SOURCE_CSS = ROOT / "style.css"
 SOURCE_JS = ROOT / "app.js"
+SHARED_CSS = SHARED / "site.css"
+SHARED_JS = SHARED / "site.js"
+FAVICON = SHARED / "assets" / "favicon.svg"
 OUTPUT_HTML = ROOT / "IPKT-Group-Path-Renamer.html"
 
-EXTERNAL_CSP = (
-    "default-src 'self'; script-src 'self'; style-src 'self'; "
-    "img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; "
-    "base-uri 'none'; form-action 'none'"
-)
 INLINE_CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; "
     "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-    "connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    "font-src 'self' data:; connect-src 'none'; object-src 'none'; "
+    "base-uri 'none'; form-action 'none'"
 )
+
+SHARED_CSS_LINK = '    <link rel="stylesheet" href="shared/site.css">'
+TOOL_CSS_LINK = '    <link rel="stylesheet" href="style.css">'
+FAVICON_LINK = '<link rel="icon" href="shared/assets/favicon.svg" type="image/svg+xml">'
+SHARED_JS_TAG = '<script src="shared/site.js"></script>'
+TOOL_JS_TAG = '<script src="app.js"></script>'
+FONT_URL_PATTERN = re.compile(r'url\("assets/fonts/([^"?]+)(?:\?[^"]*)?"\)')
 
 
 def replace_csp(html: str, value: str) -> str:
@@ -39,63 +47,44 @@ def replace_csp(html: str, value: str) -> str:
     )
 
 
-def extract_sources() -> None:
-    source = OUTPUT_HTML.read_text(encoding="utf-8")
-    style_match = re.search(r"    <style>\n(.*?)\n    </style>", source, re.DOTALL)
-    script_match = re.search(r"\n<script>\n(.*?)\n</script>", source, re.DOTALL)
-    if style_match is None or script_match is None:
-        raise RuntimeError("The field file does not contain the expected inline CSS and JavaScript.")
+def to_data_uri(data: bytes, media_type: str) -> str:
+    return f"data:{media_type};base64,{base64.b64encode(data).decode('ascii')}"
 
-    html = source[: style_match.start()]
-    html += '    <link rel="stylesheet" href="style.css">\n'
-    html += source[style_match.end() : script_match.start()]
-    html += '\n<script src="app.js"></script>'
-    html += source[script_match.end() :]
-    html = replace_csp(html, EXTERNAL_CSP)
 
-    SOURCE_HTML.write_text(html, encoding="utf-8")
-    SOURCE_CSS.write_text(style_match.group(1).strip() + "\n", encoding="utf-8")
-    SOURCE_JS.write_text(script_match.group(1).strip() + "\n", encoding="utf-8")
-    print("Extracted canonical root sources")
+def inline_fonts(css: str) -> str:
+    def embed(match: re.Match[str]) -> str:
+        font = (SHARED / "assets" / "fonts" / match.group(1)).read_bytes()
+        return f'url("{to_data_uri(font, "font/woff2")}")'
+
+    return FONT_URL_PATTERN.sub(embed, css)
+
+
+def replace_once(html: str, marker: str, replacement: str) -> str:
+    if marker not in html:
+        raise RuntimeError(f"Split HTML is missing the expected reference: {marker}")
+    return html.replace(marker, replacement, 1)
 
 
 def build() -> None:
     html = SOURCE_HTML.read_text(encoding="utf-8")
-    css = SOURCE_CSS.read_text(encoding="utf-8").rstrip()
-    javascript = SOURCE_JS.read_text(encoding="utf-8").rstrip()
-
-    if '<link rel="stylesheet" href="style.css">' not in html:
-        raise RuntimeError("Split HTML is missing the expected stylesheet reference.")
-    if '<script src="app.js"></script>' not in html:
-        raise RuntimeError("Split HTML is missing the expected script reference.")
+    shared_css = inline_fonts(SHARED_CSS.read_text(encoding="utf-8").rstrip())
+    tool_css = SOURCE_CSS.read_text(encoding="utf-8").rstrip()
+    shared_js = SHARED_JS.read_text(encoding="utf-8").rstrip()
+    tool_js = SOURCE_JS.read_text(encoding="utf-8").rstrip()
+    favicon = to_data_uri(FAVICON.read_bytes(), "image/svg+xml")
 
     html = replace_csp(html, INLINE_CSP)
-    html = html.replace(
-        '    <link rel="stylesheet" href="style.css">',
-        f"    <style>\n{css}\n    </style>",
-        1,
-    )
-    html = html.replace(
-        '<script src="app.js"></script>',
-        f"<script>\n{javascript}\n</script>",
-        1,
-    )
+    html = replace_once(html, FAVICON_LINK, f'<link rel="icon" href="{favicon}" type="image/svg+xml">')
+    html = replace_once(html, SHARED_CSS_LINK, f"    <style>\n{shared_css}\n    </style>")
+    html = replace_once(html, TOOL_CSS_LINK, f"    <style>\n{tool_css}\n    </style>")
+    html = replace_once(html, SHARED_JS_TAG, f"<script>\n{shared_js}\n</script>")
+    html = replace_once(html, TOOL_JS_TAG, f"<script>\n{tool_js}\n</script>")
 
     OUTPUT_HTML.write_text(html, encoding="utf-8")
     print(f"Built {OUTPUT_HTML.relative_to(ROOT)} from split sources")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--extract",
-        action="store_true",
-        help="Bootstrap split sources from the current self-contained field file.",
-    )
-    args = parser.parse_args()
-
-    if args.extract:
-        extract_sources()
     build()
 
 

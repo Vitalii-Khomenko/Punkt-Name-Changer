@@ -76,7 +76,9 @@ and EX points, are in `Mission.md`.
 ## Repository layout
 
 - `index.html` — canonical split HTML.
-- `style.css` — GeoMonitoring design-system presentation.
+- `style.css` — tool-specific components on top of the shared Airwitech design.
+- `shared/` — vendored Airwitech front end (themes, header, footer, meteor field,
+  fonts, favicon); see `shared/README.md`.
 - `app.js` — parsing, configuration, renaming, duplicate checking, and export.
 - `build.py` — deterministic single-file builder.
 - `IPKT-Group-Path-Renamer.html` — generated self-contained field file.
@@ -84,6 +86,22 @@ and EX points, are in `Mission.md`.
 
 Open `index.html` during development. Copy `IPKT-Group-Path-Renamer.html` to a
 phone or field computer when a single offline file is preferable.
+
+## Design and GeoField integration
+
+The page uses the Airwitech design system and belongs to the GeoField section:
+the shared header (`airwitech | geofield`, GeoField marked current, theme toggle),
+the shared footer, the dark and light themes, the self-hosted fonts, and the
+meteor field all come from the vendored `shared/` files, which are copies of the
+website repository's front end.
+
+To integrate the tool into the GeoField site later:
+
+1. Keep the GeoField site's own header, footer, `site.css`, and `site.js`.
+2. Take the content of `<main>` in `index.html` as the page body.
+3. Add the contents of `style.css` after the shared stylesheet, and `app.js`
+   after the shared script. The tool needs no backend.
+4. Keep the element IDs: `app.js` finds every control by ID.
 
 ## Development
 
@@ -96,8 +114,9 @@ Edit only `index.html`, `style.css`, and `app.js`, then rebuild the field file:
 python build.py
 ```
 
-The builder inlines `style.css` and `app.js`, adjusts the Content Security
-Policy for inline assets, and replaces `IPKT-Group-Path-Renamer.html`.
+The builder inlines both stylesheets, both scripts, the fonts, and the favicon,
+adjusts the Content Security Policy for inline assets, and replaces
+`IPKT-Group-Path-Renamer.html`.
 
 Run the checks after every change:
 
@@ -106,7 +125,7 @@ python tests/run_validation.py
 ```
 
 Validation covers JavaScript syntax, required renaming behavior, local-only
-security controls, GeoMonitoring interface invariants, and exact split-to-field
+security controls, Airwitech design invariants, and exact split-to-field
 build parity. Always review output from real Leica files before production use.
 
 ## License
