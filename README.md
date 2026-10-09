@@ -132,3 +132,12 @@ build parity. Always review output from real Leica files before production use.
 ## License
 
 MIT License
+
+## Hosting
+
+The page is served at <https://geofield.airwitech.com/ipkt-renamer/> by a small static
+container maintained in the Airwitech website repository (`geofield-tools/`), which vendors
+this repository's `index.html`, `style.css`, `app.js`, and `shared/` files (never the IPKT
+sample files, which are ignored by Git). After a change here, run
+`tools/sync-geofield-tools.ps1` in that repository and redeploy. The header carries the
+shared Airwitech navigation (including HiFi) and a slim GeoField tool bar.
