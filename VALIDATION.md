@@ -26,7 +26,7 @@ The suite validates:
 
 ## What automation does not cover
 
-- Behavior on real Leica files from every instrument and firmware version.
+- Behavior on real field files from every instrument and firmware version.
 - Browser-specific download behavior, especially on phones.
 - Whether the chosen configuration matches what the crew actually measured.
 

@@ -1,6 +1,6 @@
 # IPKT Group Path Renamer
 
-A local, browser-based tool that turns field-assigned Leica IPKT point names into
+A local, browser-based tool that turns field-assigned IPKT point names into
 structured track measurement names such as `3560.MQ08.3`, without touching any
 other byte of the file.
 
@@ -127,7 +127,7 @@ python tests/run_validation.py
 
 Validation covers JavaScript syntax, required renaming behavior, local-only
 security controls, GeoField design invariants, and exact split-to-field
-build parity. Always review output from real Leica files before production use.
+build parity. Always review output from real field files before production use.
 
 ## License
 

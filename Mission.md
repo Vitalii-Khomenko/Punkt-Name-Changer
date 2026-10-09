@@ -4,7 +4,7 @@
 
 ### 1.1 Context
 
-Track survey crews measure points with a Leica instrument and receive an IPKT
+Track survey crews measure points with a total station or GNSS receiver and receive an IPKT
 file: a fixed-width text file with one line per measured point. Each line carries
 a Point ID, Y, X, and height. The Point IDs are typed or generated in the field,
 so they describe the measurement session, not the final project structure.
@@ -97,7 +97,7 @@ usually found late, after the crew has left the site.
 - No editing of coordinates; heights change only for the Quadro correction.
 - No guessing when evidence is missing; the tool rejects instead (for example an
   EX group with no anchor).
-- No support for formats other than Leica IPKT `|YXZ|` lines.
+- No support for formats other than IPKT `|YXZ|` lines.
 - Not a replacement for reviewing real output before production use.
 
 ### 1.7 Success criteria
@@ -113,7 +113,7 @@ usually found late, after the crew has left the site.
 
 | Term | Meaning |
 | --- | --- |
-| IPKT | Leica fixed-width point text file; only lines containing `|YXZ|` are used. |
+| IPKT | Fixed-width point text file; only lines containing `|YXZ|` are used. |
 | Point ID | The fixed-width field immediately before `|YXZ|`. |
 | Source group | Everything before the final numeric segment of a Point ID. |
 | Source index | The final numeric segment (1 to 998) of a Point ID. |
@@ -514,7 +514,7 @@ the Field Checker pages) and is part of the GeoField site:
 - Names must fit the original Point ID field; the tool never widens a column.
 - The tool cannot know which MQ a crew intended; it infers from indexes and
   coordinates and shows the result for review.
-- Automated tests do not replace review of real Leica files before production
+- Automated tests do not replace review of real field files before production
   use.
 
 ## 18. Maintenance rules

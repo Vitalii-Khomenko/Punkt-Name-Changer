@@ -30,5 +30,5 @@ confidential: it never leaves the browser tab.
 - The tool does not authenticate or sign its output.
 - A copy of the field file is only as trustworthy as where it came from;
   rebuild it with `python build.py` from the repository to verify it.
-- Users should retain original Leica files and review generated output before
+- Users should retain original field files and review generated output before
   production use.
